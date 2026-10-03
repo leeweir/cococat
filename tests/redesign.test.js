@@ -1,6 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {createCat,CAT_PROFILES,pawStep,legAngles,poseLegs} from '../src/cat-model.js';
+import * as THREE from 'three';
+import {createCat,CAT_PROFILES,pawStep,legAngles,poseLegs,syncEyelids} from '../src/cat-model.js';
 import {restartGame,restoreGame,BACKUP_KEY} from '../src/save-manager.js';
 import {freshState,SAVE_KEY} from '../src/state.js';
 
@@ -8,6 +9,28 @@ test('six silhouettes each have four articulated paws and finite grounded gait',
  assert.equal(new Set(Object.values(CAT_PROFILES).map(p=>JSON.stringify([p.body,p.head,p.hip,p.ear]))).size,6);
  for(const breed of Object.keys(CAT_PROFILES)){
   const cat=createCat(breed);assert.equal(cat.userData.legs.length,4);cat.traverse(o=>{if(o.geometry)for(const [key,a] of Object.entries(o.geometry.attributes))assert.ok(a.array.every(Number.isFinite),`${breed} invalid ${key} geometry`);});
+  // Eyes must sit just above the actual cheek surface, including at their edges.
+  const face=cat.getObjectByName('sculpted-face');
+  const surface=new THREE.Mesh(face.geometry,face.material);
+  const ray=new THREE.Raycaster(new THREE.Vector3(),new THREE.Vector3(0,0,-1));
+  for(const eye of cat.userData.eyes){
+   const mesh=eye.getObjectByName('fitted-eye'),positions=mesh.geometry.attributes.position;
+   assert.ok(cat.userData.ownedGeometries.has(mesh.geometry));
+   assert.ok(cat.userData.ownedMaterials.has(mesh.material));
+   assert.ok(mesh.material.roughness>=.45&&mesh.material.clearcoat<=.2);
+   for(let i=0;i<positions.count;i+=10){
+    const x=eye.position.x+positions.getX(i),y=eye.position.y+positions.getY(i);
+    ray.ray.origin.set(x,y,1.2);
+    const skin=ray.intersectObject(surface,false)[0];assert.ok(skin,`${breed}: eye outside face`);
+    const clearance=positions.getZ(i)-skin.point.z;
+    assert.ok(clearance>=.003&&clearance<=.015,`${breed}: detached or buried eye (${clearance})`);
+   }
+   for(const scale of [.1,.44,1,.7,1]){
+    eye.scale.y=scale;syncEyelids(cat);
+    assert.equal(eye.visible,scale>=.45);
+    assert.equal(eye.userData.lid.visible,scale<.45);
+   }
+  }
   for(const phase of [0,.12,.4,.66,.88,1]){
    poseLegs(cat,phase,.4,.12);cat.updateMatrixWorld(true);
    for(const leg of cat.userData.legs){assert.ok(Number.isFinite(leg.rotation.x));assert.ok(Number.isFinite(leg.userData.knee.rotation.x));const foot=leg.userData.ankle.getWorldPosition(cat.position.clone());assert.ok(foot.y>=-.001,`${breed} paw below floor ${foot.y}`);}
