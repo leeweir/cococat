@@ -102,7 +102,7 @@ export class CatWorld{
  box(p,0xc99f72,[2.75,.22,-1.3],[1.57,.40,.85],.06);plant(p,-3.6,.9,0x9caa7d,.8);
  }
  setCat(id,outfit){if(this.cat){this.scene.remove(this.cat);disposeCat(this.cat);}this.cat=createCat(id,outfit);this.scene.add(this.cat);this.cat.rotation.y=.07;this.placeCat();}
- placeCat(){if(!this.cat)return;this.cat.scale.setScalar(this.cat.userData.baseScale*(['adopt','wardrobe'].includes(this.currentScene)?1:this.currentScene==='bath'?.86:.68));const y=this.currentScene==='bath'?.28:this.currentScene==='wardrobe'?.32:.06;const z=['home','tv'].includes(this.currentScene)?.55:this.currentScene==='wardrobe'?.25:0;this.cat.position.set(0,y,z);this.baseY=y;this.baseZ=z;}
+ placeCat(){if(!this.cat)return;this.cat.scale.setScalar(this.cat.userData.baseScale*(['adopt','wardrobe'].includes(this.currentScene)?1:this.currentScene==='bath'?.86:.68));const y=this.currentScene==='bath'?.28:this.currentScene==='wardrobe'?.32:.06;const z=['home','tv'].includes(this.currentScene)?1.65:this.currentScene==='wardrobe'?.25:0;this.cat.position.set(0,y,z);this.baseY=y;this.baseZ=z;}
  setScene(name){this.currentScene=name;for(const [id,g]of Object.entries(this.environments))g.visible=id===(name==='tv'?'home':name);this.placeCat();this.resetCamera();if(this.bowl)this.bowl.visible=false;}
  resetCamera(){
  const w=this.canvas.clientWidth,h=this.canvas.clientHeight;if(!w||!h)return;

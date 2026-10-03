@@ -39,5 +39,5 @@ test('navigation chooses a clear approach when the requested point is inside fur
 });
 
 test('old crowded furniture layouts are separated from each other and the cat spawn',async()=>{
- const {fitFurniture,validPlacement}=await import('../src/furniture-layout.js');const items=fitFurniture(['box','bed','tower','toy','rug'].map(id=>({id,x:0,z:.55,rotation:0})));for(const item of items)assert.ok(validPlacement(item,items,{x:0,z:.55}),item.id);
+ const {fitFurniture,validPlacement}=await import('../src/furniture-layout.js');const items=fitFurniture(['box','bed','tower','toy','rug'].map(id=>({id,x:0,z:.55,rotation:0})));for(const item of items)assert.ok(validPlacement(item,items,{x:0,z:1.65}),item.id);
 });

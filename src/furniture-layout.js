@@ -9,8 +9,8 @@ export function validPlacement(item,items,cat){
 }
 export function fitFurniture(items){
  const placed=[];
- for(const item of items){let candidate={...item};if(!validPlacement(candidate,placed,{x:0,z:.55})){
-  const options=[];for(let z=.3;z<=2.2;z+=.25)for(let x=-3.2;x<=3.2;x+=.25){const c={...item,x,z};if(validPlacement(c,placed,{x:0,z:.55}))options.push(c);}
+ for(const item of items){let candidate={...item};if(!validPlacement(candidate,placed,{x:0,z:1.65})){
+  const options=[];for(let z=.3;z<=2.2;z+=.25)for(let x=-3.2;x<=3.2;x+=.25){const c={...item,x,z};if(validPlacement(c,placed,{x:0,z:1.65}))options.push(c);}
   options.sort((a,b)=>Math.hypot(a.x-item.x,a.z-item.z)-Math.hypot(b.x-item.x,b.z-item.z));if(options.length)candidate=options[0];
  }placed.push(candidate);}return placed;
 }
