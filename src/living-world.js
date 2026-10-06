@@ -1,6 +1,6 @@
 import {ROOM_OBSTACLES,furnitureRadius,validPlacement} from './furniture-layout.js';
 import {route,blocked,clearSegment} from './navigation.js';
-import {poseLegs} from './cat-model.js';
+import {poseLegs,syncEyelids} from './cat-model.js';
 import {CatWorld,THREE,C,group,ball,box,cyl,tube,torus,star,flower,plant,sign,mesh,makeCat,disposeCat} from './world.js';
 import {PERSONALITIES,FURNITURE_BY_ID} from './state.js';
 const limit=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -11,13 +11,58 @@ const USE_LINES={box:'纸箱就是豪宅，租金是一个呼噜。',bed:'已进
 // Which placed pieces each personality activity will reach for.
 const IDLE_BEHAVIORS={sleep:['sleep'],box:['box'],tower:['tower'],toy:['toy','paw'],sniff:['sniff','watch']};
 const HOME_BOUNDS={x:3.5,minZ:-2.3,maxZ:2.35},FIELD_BOUNDS={x:3.25,minZ:-1.9,maxZ:2.3};
+const PORTRAIT_DURATIONS={head:1.8,chin:1.8,nose:1.7,paw:1.8,blink:2};
 export class LivingWorld extends CatWorld {
  constructor(canvas,onPet,onWardrobe,onEvent){
   super(canvas,onPet,onWardrobe);this.onEvent=onEvent;this.pos=new THREE.Vector3(0,.06,.55);this.destination=null;this.face=.35;this.gait=0;this.walkBlend=0;this.mode='free';this.inputMode=null;this.nextIdle=7;this.behavior='watch';this.poseUntil=0;this.idleCount=0;this.stats={breed:'calico',bond:0};this.props=group(this.scene);this.furnitureRoot=group(this.environments.home);this.furnitureMeshes=new Map();this.dragging=false;this.drive=new THREE.Vector2();this.driveSpots=new Set();this.driveStep=0;this.pointer=new THREE.Vector2();this.ray=new THREE.Raycaster();this.floorPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);this.buildToys();this.buildGarden();this.buildStreet();this.buildBathTools();this.buildStoryProps();this.buildTVShows();this.ready=true;this.installInput();
+  this.portraitAction=null;this.portraitPoint=new THREE.Vector3();this.portraitHits=[];
  }
  emit(type,data={}){this.onEvent?.(type,data);}
- setScene(name){super.setScene(name);if(!this.ready)return;this.pos.set(0,this.baseY,this.baseZ);this.destination=null;this.waypoints=[];this.jump=null;this.behavior='watch';this.poseUntil=0;this.cat.visible=true;this.nextIdle=this.elapsed+7;this.face=.35;this.drive.set(0,0);this.driveSpots.clear();}
- setMode(mode){this.mode=mode;this.drive.set(0,0);this.driveSpots.clear();this.inputMode=['wand','fetch','hide','scrub','rinse','decorate','explore'].includes(mode)?mode:null;this.controls.enabled=!this.inputMode&&!this.uiBlocked;this.canvas.style.cursor=this.inputMode?'crosshair':'grab';this.destination=null;this.waypoints=[];this.jump=null;this.afterArrive=null;this.poseUntil=0;this.cat.visible=true;this.behavior='watch';this.nextIdle=this.elapsed+7;this.toys.visible=['wand','fetch','hide'].includes(mode);this.furnitureRoot.visible=mode!=='hide';this.feather.visible=mode==='wand';this.fetchBall.visible=mode==='fetch';this.hideBoxes.visible=mode==='hide';this.sponge.visible=mode==='scrub';this.handShower.visible=mode==='rinse';this.ballPhase='ready';this.lastCatch=-10;this.lastWand=new THREE.Vector3(99,0,99);this.wandTarget=null;this.strokePrevious=null;this.bathRatio=0;this.foam.children.forEach(m=>m.visible=mode==='rinse');this.drops.visible=mode==='rinse';this.selectedFurniture=null;this.furnitureRoot.traverse(o=>{if(o.isMesh&&o.material.emissive)o.material.emissive.setHex(0);});if(mode==='hide')this.newHideRound();if(mode==='explore')this.pos.set(0,.06,1.9);this.emit('input-mode',{mode});}
+ setScene(name){this.clearPortrait();this.clearPointerInput();super.setScene(name);if(!this.ready)return;this.pos.set(0,this.baseY,this.baseZ);this.destination=null;this.waypoints=[];this.jump=null;this.behavior='watch';this.poseUntil=0;this.cat.visible=true;this.nextIdle=this.elapsed+7;this.face=.35;this.drive.set(0,0);this.driveSpots.clear();}
+ setMode(mode){const portraitChanged=(this.mode==='portrait')!==(mode==='portrait');this.clearPortrait();this.clearPointerInput();this.mode=mode;this.drive.set(0,0);this.driveSpots.clear();this.inputMode=['wand','fetch','hide','scrub','rinse','decorate','explore'].includes(mode)?mode:null;this.controls.enabled=!this.inputMode&&!this.uiBlocked;this.canvas.style.cursor=this.inputMode?'crosshair':'grab';this.destination=null;this.waypoints=[];this.jump=null;this.afterArrive=null;this.poseUntil=0;this.cat.visible=true;this.behavior='watch';this.nextIdle=this.elapsed+7;this.toys.visible=['wand','fetch','hide'].includes(mode);this.furnitureRoot.visible=mode!=='hide';this.feather.visible=mode==='wand';this.fetchBall.visible=mode==='fetch';this.hideBoxes.visible=mode==='hide';this.sponge.visible=mode==='scrub';this.handShower.visible=mode==='rinse';this.ballPhase='ready';this.lastCatch=-10;this.lastWand=new THREE.Vector3(99,0,99);this.wandTarget=null;this.strokePrevious=null;this.bathRatio=0;this.foam.children.forEach(m=>m.visible=mode==='rinse');this.drops.visible=mode==='rinse';this.selectedFurniture=null;this.furnitureRoot.traverse(o=>{if(o.isMesh&&o.material.emissive)o.material.emissive.setHex(0);});if(mode==='hide')this.newHideRound();if(mode==='explore')this.pos.set(0,.06,1.9);if(mode==='portrait'){this.pos.set(0,this.baseY,this.baseZ);this.walkBlend=0;this.petUntil=0;}if(portraitChanged&&this.currentScene==='adopt')this.resetCamera();this.emit('input-mode',{mode});}
+ setPaused(value){super.setPaused(value);if(value)this.clearPointerInput();}
+ clearPointerInput(){this.dragging=false;this.pointerStart=null;this.strokePrevious=null;}
+ clearPortrait(){
+  if(this.mode!=='portrait'&&!this.portraitAction)return;
+  this.portraitAction=null;if(!this.cat)return;
+  const {rig,head,tail,eyes,legs,profile}=this.cat.userData;
+  rig.position.set(0,0,0);rig.rotation.set(0,0,0);head.position.set(0,profile.headY,profile.headZ);head.rotation.set(0,0,0);tail.rotation.set(0,0,0);
+  for(const leg of legs)leg.rotation.z=0;
+  poseLegs(this.cat,0,0,0);for(const eye of eyes)eye.scale.y=1;syncEyelids(this.cat);
+ }
+ interactPortrait(action){
+  if(!Object.hasOwn(PORTRAIT_DURATIONS,action)||this.mode!=='portrait'||this.currentScene!=='adopt'||this.uiBlocked||!this.cat||this.portraitAction||this.action||this.destination||this.jump)return false;
+  this.portraitAction={action,start:this.elapsed,duration:PORTRAIT_DURATIONS[action]};return true;
+ }
+ updatePortrait(t){
+  const {rig,head,tail,eyes,legs,profile}=this.cat.userData,motion=this.reduced?0:1;
+  this.cat.position.copy(this.pos);this.cat.rotation.y=.08;
+  rig.position.set(0,Math.sin(t*2)*.008*motion,0);rig.rotation.set(0,0,0);
+  head.position.set(0,profile.headY,profile.headZ);head.rotation.set(0,Math.sin(t*.65)*.025*motion,0);tail.rotation.set(0,0,Math.sin(t*1.6)*.08*motion);
+  for(const leg of legs)leg.rotation.z=0;
+  const active=this.portraitAction;let openness=Math.sin(t*1.5)>.994?.1:1;
+  if(active){
+   const u=limit((t-active.start)/active.duration,0,1),ease=THREE.MathUtils.smoothstep(u,0,.25)*(1-THREE.MathUtils.smoothstep(u,.72,1));
+   openness=1;
+   if(active.action==='head'){
+    head.rotation.z=.28*ease;head.rotation.y=.08*ease+Math.sin(u*Math.PI*4)*.04*ease*motion;head.rotation.x=-.06*ease;openness=1-.91*ease;
+   }else if(active.action==='chin'){
+    head.rotation.x=-.55*ease;head.position.y+=.055*ease;head.rotation.z=Math.sin(u*Math.PI*6)*.045*ease*motion;openness=1-.75*ease;
+   }else if(active.action==='nose'){
+    const sniff=THREE.MathUtils.smoothstep(u,0,.2)*(1-THREE.MathUtils.smoothstep(u,.35,.55)),recoil=THREE.MathUtils.smoothstep(u,.35,.53)*(1-THREE.MathUtils.smoothstep(u,.7,1));
+    head.position.z+=(.075+.04*motion)*sniff-(.055+.035*motion)*recoil;head.rotation.x=-.07*sniff+.2*recoil;head.rotation.y=Math.sin(u*Math.PI*8)*.035*sniff*motion;openness=1-.65*recoil;
+   }else if(active.action==='paw'){
+    const leg=legs[0],{knee,ankle}=leg.userData;
+    leg.rotation.x-=1.9*ease;leg.rotation.z=.22*ease;knee.rotation.x=knee.rotation.x*(1-ease)+.55*ease;ankle.rotation.x=-leg.rotation.x-knee.rotation.x+.32*ease;
+    head.rotation.z=-.12*ease;openness=1-.15*ease;
+   }else if(active.action==='blink'){
+    const closed=THREE.MathUtils.smoothstep(u,.08,.4)*(1-THREE.MathUtils.smoothstep(u,.63,.94));
+    openness=1-.94*closed;head.rotation.x=-(.06+.04*motion)*closed;
+   }
+   for(const eye of eyes)eye.scale.y=openness;
+   if(u>=1){this.portraitAction=null;this.emit('portrait-complete',{action:active.action});}
+  }else for(const eye of eyes)eye.scale.y=openness;
+ }
  syncState(state){this.stats={breed:state.breed,bond:state.bond,fullness:state.fullness};this.setFurniture(state.furniture||[]);if(state.roomTheme)this.setRoomTheme(state.roomTheme);}
  buildToys(){this.toys=group(this.scene);this.toys.visible=false;this.feather=group(this.toys);tube(this.feather,0x997451,[[0,0,0],[.35,.65,-.12]],.025);tube(this.feather,0xc9af86,[[.35,.65,-.12],[.13,.9,-.1],[-.12,.8,.0]],.012);for(let i=0;i<3;i++){const f=ball(this.feather,[0xa9d8ee,0xd0a982,0x9fb18d][i],[-.14+i*.055,.78,0],[.07,.19,.03]);f.rotation.z=(i-1)*.3;}this.fetchBall=ball(this.toys,0x93c2e4,[0,.2,1.9],[.13,.13,.13]);this.ballStripe=torus(this.fetchBall,0xffe4a1,[0,0,0],1.01,.06,[.5,0,.5]);this.hideBoxes=group(this.toys);for(let i=0;i<3;i++){const b=group(this.hideBoxes,[(i-1)*1.9,.03,1]);this.makeBox(b,1);b.userData.boxIndex=i;b.traverse(o=>o.userData.boxIndex=i);} }
  makeBox(g,size=1){const w=1.18*size,d=1.36*size,h=.72*size;
@@ -156,7 +201,51 @@ export class LivingWorld extends CatWorld {
  }
  pointFromEvent(e,y=0,bounds={x:3.25,minZ:-1.9,maxZ:2.3}){const r=this.canvas.getBoundingClientRect();this.pointer.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);this.ray.setFromCamera(this.pointer,this.camera);const p=new THREE.Vector3();this.ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0,1,0),-y),p);p.x=limit(p.x,-3.25,3.25);p.z=limit(p.z,bounds.minZ,bounds.maxZ);return p;}
  objectAt(e,objects){this.pointFromEvent(e);const hits=this.ray.intersectObjects(objects,true);return hits.find(h=>{let o=h.object;while(o){if(!o.visible)return false;o=o.parent;}return true;})?.object;}
- installInput(){this.canvas.addEventListener('pointerdown',e=>{if(this.uiBlocked)return;this.dragging=true;this.pointerStart={x:e.clientX,y:e.clientY};this.strokePrevious=null;if(this.inputMode){this.canvas.setPointerCapture(e.pointerId);this.handlePointer(e,true);} });this.canvas.addEventListener('pointermove',e=>{if(this.uiBlocked)return;if(this.dragging&&this.inputMode)this.handlePointer(e,false);});this.canvas.addEventListener('pointerup',e=>{if(this.uiBlocked)return;const moved=this.pointerStart?Math.hypot(e.clientX-this.pointerStart.x,e.clientY-this.pointerStart.y):0;this.dragging=false;this.strokePrevious=null;if(moved>9||['wand','scrub','rinse','decorate'].includes(this.mode))return;if(this.mode==='fetch'){const p=this.pointFromEvent(e);this.throwBall(p.x,p.z);}else if(this.mode==='hide'){const o=this.objectAt(e,[this.hideBoxes]);if(o?.userData.boxIndex!==undefined)this.chooseBox(o.userData.boxIndex);}else if(this.mode==='explore'){const o=this.objectAt(e,[this.trail]);if(o?.userData.spot)this.emit('visit-spot',{id:o.userData.spot});else{const p=this.pointFromEvent(e);this.moveTo(p.x,p.z);}}else if(this.mode==='free'){const o=this.objectAt(e,[this.furnitureRoot]);if(o?.userData.furniture)this.useFurniture(o.userData.furniture);else{const p=this.pointFromEvent(e,0,HOME_BOUNDS);this.moveTo(p.x,p.z);}}});this.canvas.addEventListener('pointercancel',()=>{this.dragging=false;this.strokePrevious=null;});}
+ portraitActionAt(e){
+  if(this.mode!=='portrait'||this.currentScene!=='adopt'||this.uiBlocked||!this.cat)return null;
+  const r=this.canvas.getBoundingClientRect();if(!r.width||!r.height||e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)return null;
+  this.pointer.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);this.camera.updateMatrixWorld();this.cat.updateMatrixWorld(true);this.ray.setFromCamera(this.pointer,this.camera);
+  const hits=this.portraitHits;hits.length=0;this.ray.intersectObject(this.cat,true,hits);
+  const {head,legs,profile,anchors}=this.cat.userData;
+  for(const hit of hits){
+   let visible=true;for(let o=hit.object;o;o=o.parent)if(!o.visible){visible=false;break;}
+   if(!visible)continue;
+   for(let o=hit.object;o&&o!==this.cat;o=o.parent){
+    if(legs.includes(o))return 'paw';
+    if(o===head){
+     // Breed-local face coordinates survive camera orbit, head tilt and differently sized skulls.
+     const p=head.worldToLocal(this.portraitPoint.copy(hit.point));
+     if(Math.abs(p.x)<profile.head[0]*.21&&Math.abs(p.y-anchors.noseY)<.07&&p.z>anchors.noseZ-.09)return 'nose';
+     if(p.y<anchors.noseY-.075&&Math.abs(p.x)<profile.head[0]*.65&&p.z>.05)return 'chin';
+     return 'head';
+    }
+   }
+   return null; // A torso hit must not reach through the cat to a hidden face or paw.
+  }
+  return null;
+ }
+ installInput(){
+  this.canvas.addEventListener('pointerdown',e=>{
+   if(this.uiBlocked||e.isPrimary===false){this.clearPointerInput();return;}if(e.button!==0)return;
+   this.dragging=true;this.pointerStart={x:e.clientX,y:e.clientY,id:e.pointerId,mode:this.mode,moved:false};this.strokePrevious=null;
+   if(this.inputMode){this.canvas.setPointerCapture(e.pointerId);this.handlePointer(e,true);}
+  });
+  this.canvas.addEventListener('pointermove',e=>{
+   if(this.uiBlocked)return;const start=this.pointerStart;if(!start||start.id!==e.pointerId)return;
+   if(Math.hypot(e.clientX-start.x,e.clientY-start.y)>9)start.moved=true;
+   if(this.dragging&&this.inputMode)this.handlePointer(e,false);
+  });
+  this.canvas.addEventListener('pointerup',e=>{
+   const start=this.pointerStart;if(start&&start.id!==e.pointerId)return;this.clearPointerInput();
+   if(this.uiBlocked||!start||start.mode!==this.mode||start.moved||Math.hypot(e.clientX-start.x,e.clientY-start.y)>9||['wand','scrub','rinse','decorate'].includes(this.mode))return;
+   if(this.mode==='portrait'){const action=this.portraitActionAt(e);if(action)this.emit('portrait-touch',{action});}
+   else if(this.mode==='fetch'){const p=this.pointFromEvent(e);this.throwBall(p.x,p.z);}
+   else if(this.mode==='hide'){const o=this.objectAt(e,[this.hideBoxes]);if(o?.userData.boxIndex!==undefined)this.chooseBox(o.userData.boxIndex);}
+   else if(this.mode==='explore'){const o=this.objectAt(e,[this.trail]);if(o?.userData.spot)this.emit('visit-spot',{id:o.userData.spot});else{const p=this.pointFromEvent(e);this.moveTo(p.x,p.z);}}
+   else if(this.mode==='free'){const o=this.objectAt(e,[this.furnitureRoot]);if(o?.userData.furniture)this.useFurniture(o.userData.furniture);else{const p=this.pointFromEvent(e,0,HOME_BOUNDS);this.moveTo(p.x,p.z);}}
+  });
+  this.canvas.addEventListener('pointercancel',()=>this.clearPointerInput());
+ }
  handlePointer(e,down){if(this.mode==='wand'){const p=this.pointFromEvent(e,.55);this.wandTarget=p;this.feather.position.set(p.x,.55,p.z);this.walkRoute(p.x,p.z);const end=this.waypoints.at(-1)||this.destination;if(end){this.wandTarget.set(end.x,.55,end.z);this.feather.position.copy(this.wandTarget);}}
  if(this.mode==='decorate'){if(down){const o=this.objectAt(e,[this.furnitureRoot]);if(o?.userData.furniture){this.selectedFurniture=o.userData.furniture;this.emit('select-furniture',{uid:this.selectedFurniture,id:this.furnitureMeshes.get(this.selectedFurniture)?.userData.furnitureType});}}const p=this.pointFromEvent(e);this.placeSelected(p.x,p.z);}
  if(['scrub','rinse'].includes(this.mode)){const r=this.canvas.getBoundingClientRect();const screen=this.project(this.cat.position.clone().add(new THREE.Vector3(0,.95,.25)));const dx=e.clientX-r.left-screen.x,dy=e.clientY-r.top-screen.y;const catRadius=Math.max(40,r.height*.16);const near=dx*dx/(catRadius*catRadius)+dy*dy/(catRadius*catRadius*1.4)<1;const p=this.pointFromEvent(e,1.0);(this.mode==='scrub'?this.sponge:this.handShower).position.set(p.x,1.1,p.z+.2);if(near){const distance=this.strokePrevious?Math.hypot(e.clientX-this.strokePrevious.x,e.clientY-this.strokePrevious.y):8;if(distance>2)this.emit('bath-stroke',{amount:Math.min(distance,26)/5});this.strokePrevious={x:e.clientX,y:e.clientY};}}
@@ -175,6 +264,8 @@ export class LivingWorld extends CatWorld {
   if(anim.glow)anim.glow.forEach(m=>{m.material.emissiveIntensity=.72+Math.sin(t*1.8)*.18;});}
  // Toy pieces wobble whenever the cat is playing with one.
  for(const g of this.furnitureMeshes.values())if(g.userData.furnitureType==='toy')g.rotation.z=this.behavior==='toy'&&t<this.poseUntil?Math.sin(t*7)*.12:0;
+ // Portrait owns the final pose: do not let walking, idle poses or the generic pet overwrite it.
+ if(this.mode==='portrait'&&this.currentScene==='adopt'){this.updatePortrait(t);this.emitFrame();return;}
  if(this.action){this.emitFrame();return;}
  this.updateDrive(dt,t);
  if(this.mode==='free'&&t>this.nextIdle&&!this.jump&&!this.destination&&t>this.poseUntil){this.nextIdle=t+10;const choices=PERSONALITIES[this.stats.breed].activities;let activity=choices[this.idleCount++%choices.length];if(this.stats.fullness<45)activity='sniff';if(this.stats.bond>=35&&this.idleCount%4===0)activity='follow';const wanted=IDLE_BEHAVIORS[activity];let target=null;

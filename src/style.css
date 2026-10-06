@@ -110,3 +110,57 @@
  #app[data-mode="decorate"] .view-controls{bottom:252px}
 }
 @media(max-width:374px){#move-pad{grid-template-columns:repeat(3,34px);grid-template-rows:repeat(2,34px);gap:3px}}
+
+/* Close-up companionship keeps the cat in front, with one small wish note beside it. */
+#app[data-mode="portrait"] .portrait-shelf{width:270px;padding:16px;gap:12px;justify-content:flex-start;background:var(--paper);border-color:var(--line)}
+#app[data-mode="portrait"] .speech{display:none}
+#app[data-mode="portrait"] .home-button{min-height:44px}
+#app[data-mode="portrait"] .view-controls button{width:44px;height:44px;flex-shrink:0}
+.portrait-wish{padding:12px;border-radius:16px 16px 16px 5px;background:#efe8d8;flex-shrink:0}
+.portrait-wish-heading{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:9px}
+.portrait-wish-heading>span{font-size:11px;color:var(--ink)}
+.portrait-progress{display:flex;align-items:center;gap:6px;flex-shrink:0;color:var(--accent)}
+.portrait-progress b{font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.portrait-marks{display:flex;gap:3px}
+.portrait-marks i{display:block;width:12px;height:12px;color:var(--ink);opacity:.25}
+.portrait-marks svg{display:block;width:100%;height:100%}
+.portrait-marks .earned{color:var(--accent);opacity:1}
+.portrait-wish>strong{display:block;font-size:15px;line-height:1.55;font-weight:600;min-height:47px}
+.portrait-wish>strong.is-reward{font-size:13px;line-height:1.8;color:#476353}
+.portrait-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;flex-shrink:0}
+.portrait-action{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-width:0;min-height:68px;padding:9px 5px;border:1px solid var(--line);border-radius:15px;background:#fffcf6;box-shadow:0 2px 0 #ded3c366;font-size:13px;line-height:1.3;transition:background .15s,border-color .15s}
+.portrait-action:last-child{grid-column:1/-1;flex-direction:row;gap:10px;min-height:52px}
+.portrait-action-icon{display:grid;place-items:center;width:27px;height:27px;color:#8b7858}
+.portrait-action-icon svg{width:100%;height:100%}
+.portrait-action-label{white-space:nowrap}
+.portrait-action[aria-disabled="true"]{opacity:.65;cursor:wait}
+.portrait-action.is-busy{opacity:1;background:#e5ede1;border-color:var(--accent);box-shadow:inset 0 2px 3px #617e701a}
+.portrait-action.is-busy .portrait-action-icon{color:var(--accent)}
+.portrait-action:not([aria-disabled="true"]):active{transform:translateY(1px);box-shadow:none}
+.portrait-response{margin:0;min-height:63px;font-size:12px;line-height:1.75;color:var(--ink);overflow-wrap:anywhere}
+.portrait-footer{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:auto;flex-shrink:0}
+.portrait-footer>span{max-width:110px;font-size:11px;line-height:1.6;color:#776b56}
+.portrait-footer button{min-height:44px;padding:10px 12px;white-space:nowrap;font-size:12px}
+.portrait-action:focus-visible,.portrait-footer button:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+@media(hover:hover){.portrait-action:not([aria-disabled="true"]):hover{background:#e5ede1;border-color:var(--accent)}}
+@media(max-width:759px){
+ #app[data-mode="portrait"] .portrait-shelf{display:grid;grid-template-rows:auto 70px minmax(0,1fr) 44px;gap:8px;left:10px;right:10px;bottom:10px;width:auto;height:272px;padding:12px;border-radius:22px;overflow:auto}
+ #app[data-mode="portrait"] .scene-heading{top:114px;max-width:calc(100% - 34px)}
+ #app[data-mode="portrait"] .scene-heading h1{font-size:18px}
+ #app[data-mode="portrait"] .scene-heading>span{font-size:9px}
+ #app[data-mode="portrait"] .home-button{top:62px}
+ #app[data-mode="portrait"] .view-controls{left:16px;right:16px;bottom:292px;justify-content:space-between;font-size:10px;gap:8px}
+ #app[data-mode="portrait"] .view-controls span{max-width:240px;text-align:center;line-height:1.5}
+ .portrait-wish{padding:8px 10px;border-radius:13px 13px 13px 4px}
+ .portrait-wish-heading{margin-bottom:5px}
+ .portrait-wish>strong{font-size:14px;line-height:1.45;min-height:21px}
+ .portrait-wish>strong.is-reward{font-size:13px;line-height:1.55}
+ .portrait-actions{grid-template-columns:repeat(5,minmax(0,1fr));gap:5px}
+ .portrait-action,.portrait-action:last-child{grid-column:auto;flex-direction:column;gap:6px;min-height:70px;padding:7px 2px;border-radius:12px;font-size:12px}
+ .portrait-action-icon{width:26px;height:26px}
+ .portrait-response{align-self:center;min-height:0;font-size:12px;line-height:1.5}
+ .portrait-footer{margin-top:0}
+ .portrait-footer>span{max-width:none;font-size:11px}
+ .portrait-footer button{min-height:44px;font-size:12px;padding:10px 15px}
+}
+@media(prefers-reduced-motion:reduce){.portrait-action{transition:none}.portrait-action:not([aria-disabled="true"]):active{transform:none}}

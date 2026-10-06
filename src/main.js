@@ -5,6 +5,7 @@ import {restartGame,previousGame,restoreGame} from './save-manager.js';
 import {SLOTS,WARDROBE,SLOT_QUIPS,wearItem,randomOutfit} from './wardrobe.js';
 import {initSound,setSoundEnabled,soundEnabled,tone,meow,purr} from './sound.js';
 import {LivingWorld} from './living-world.js';
+import {PORTRAIT_ACTIONS,createPortraitSession,beginPortraitAction,finishPortraitAction} from './portrait.js';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
 const esc=text=>String(text).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let state,saveOK=true;try{state=normalizeSave(JSON.parse(localStorage.getItem(SAVE_KEY)));}catch{state=freshState();}
@@ -29,7 +30,7 @@ function heading(kicker,title,desc=''){ $('#scene-kicker').textContent=kicker;$(
 function shelf(html,cls=''){ $('#shelf').className=`shelf expanded-shelf ${cls}`;const steps=mode==='toy'?{wand:[['feather','晃晃羽毛'],['paw','抓住它'],['gift','集满 5 爪']],fetch:[['ball','抛小球'],['cat','叼回来'],['gift','送达 3 次']],hide:[['box','观察纸箱'],['search','找小猫'],['gift','找到 2 次']]}[session?.kind]:guides[mode];if(steps){const marker='</span></div>';const at=html.indexOf(marker);if(at>=0)html=html.slice(0,at+marker.length)+guide(steps)+html.slice(at+marker.length);}$('#shelf').innerHTML=html;}
 const button=(id,label,symbol,extra='')=>`<button class="action-button" data-action="${id}" aria-label="${esc(label)}" ${extra}><span class="action-icon">${symbol?.startsWith('<')?symbol:esc(symbol||'✧')}</span><span>${esc(label)}</span></button>`;
 const guide=(steps)=>`<div class="how-to" aria-label="玩法图解">${steps.map(([picture,label],i)=>`<div class="guide-step"><span>${icon(picture)}</span><small>${label}</small></div>${i<steps.length-1?'<i>›</i>':''}`).join('')}</div>`;
-const guides={kitchen:[['feed','选食材'],['cat','尝一口'],['heart','发现最爱']],bath:[['sponge','搓泡泡'],['shower','冲干净'],['paw','香香完成']],tv:[['tv','选频道'],['cat','一起看'],['heart','收获陪伴']],map:[['map','选目的地'],['search','找宝物'],['gift','带回家']],portrait:[['hand','拖动看看'],['cat','摸摸脑袋'],['heart','看小表情']]};
+const guides={kitchen:[['feed','选食材'],['cat','尝一口'],['heart','发现最爱']],bath:[['sponge','搓泡泡'],['shower','冲干净'],['paw','香香完成']],tv:[['tv','选频道'],['cat','一起看'],['heart','收获陪伴']],map:[['map','选目的地'],['search','找宝物'],['gift','带回家']]};
 const line=(text,progress=false)=>`<div class="shelf-line"><span id="action-status">${esc(text)}</span>${progress?'<span class="progress-track"><i></i></span>':''}<span id="bond-label">${bondLevel(state).name} · ${state.bond}</span></div>`;
 function cleanup(){clearTimeout(timer);cancelAnimationFrame(raf);timer=null;busy=false;activity=null;pendingSpot=null;clearDrive();world.finishAction();world.clearExploration();$('#world-labels').replaceChildren();$('#bath-splash').classList.remove('show');session=null;outing=null;}
 function scene(name,sceneName,title,kicker,desc=''){cleanup();mode=name;$('#app').dataset.mode=name;$('#app').className=`game-mode expansion-mode ${name==='wardrobe'?'wardrobe-mode':''}`;world.setScene(sceneName);$('#home').hidden=false;$('#scene-hotspot').hidden=true;$('#world-labels').hidden=name!=='explore';heading(kicker,title,desc);updateStats();setPad();}
@@ -94,7 +95,73 @@ function addPiece(id){const f=FURNITURE_BY_ID.get(id);if(!f)return;
  const uid=newFurnitureUid(state,id);state=placeFurniture(state,{uid,id,x:spot.x,z:spot.z,rotation:0});selectedUid=uid;save();world.syncState(state);world.selectFurniture(uid);renderDecorate();flashSaved();say(`${f.name}准备好了，拖动它换个位置吧。`);}
 function openDecorate(){scene('decorate','home','把小屋摆成喜欢的样子','家里的每一件，都能玩','点家具摆进房间，拖动摆放，随时自动保存。');world.setMode('decorate');world.syncState(state);selectedUid=state.furniture[0]?.uid||null;world.selectFurniture(selectedUid);renderDecorate();say('家具你来摆，使用权本喵全包。');}
 
-function openPortrait(){scene('portrait','adopt',`${state.name}的可爱特写`,'靠近一点，看见小表情','拖动转视角，看看眼睛和小爪子。');world.setMode('portrait');shelf(`<div class="activity-heading"><b>小猫专属镜头</b><span>房间里保持自然比例，近景看清每个细节。</span></div><div class="activity-controls"><button class="soft-button" id="portrait-pet">摸摸小脑袋</button><button class="soft-button" id="portrait-head">歪歪头</button><button class="primary" id="portrait-home">回到小屋</button></div>${line('慢慢转动视角，和小猫对视一会儿。')}`);$('#portrait-pet').onclick=()=>{world.pet();say('呼噜噜……这个角度也很可爱。');};$('#portrait-head').onclick=()=>{world.pose('nuzzle',3);say('你在看我吗？那我也看看你。');};$('#portrait-home').onclick=showHome;say('靠近一点点，眼睛里都是你。');}
+function openPortrait(){
+ scene('portrait','adopt',`${state.name}的可爱特写`,'靠近一点，看见小表情','拖动转视角，轻轻回应小猫的三个心愿。');
+ world.setMode('portrait');
+ session=createPortraitSession(`portrait-${runId()}`);
+ shelf(`<div class="portrait-wish" aria-live="polite" aria-atomic="true">
+  <div class="portrait-wish-heading"><span id="portrait-wish-label">小猫的小心愿</span><div id="portrait-progress" class="portrait-progress" role="progressbar" aria-label="本轮小心愿" aria-valuemin="0" aria-valuemax="3" aria-valuenow="0"><span class="portrait-marks" aria-hidden="true">${session.requests.map(()=>`<i>${icon('paw')}</i>`).join('')}</span><b id="portrait-count">0 / 3</b></div></div>
+  <strong id="portrait-wish-text"></strong>
+ </div>
+ <div class="portrait-actions" role="group" aria-label="轻轻回应小猫">${PORTRAIT_ACTIONS.map(action=>`<button type="button" class="portrait-action" data-portrait-action="${action.id}" aria-label="${esc(action.label)}" aria-disabled="false"><span class="portrait-action-icon" aria-hidden="true">${icon(action.icon)}</span><span class="portrait-action-label">${esc(action.label)}</span></button>`).join('')}</div>
+ <p id="portrait-response" class="portrait-response" role="status" aria-live="polite" aria-atomic="true"></p>
+ <div class="portrait-footer"><span id="portrait-reassurance">摸错也没关系，慢慢来。</span><button type="button" class="primary" id="portrait-again" hidden>再陪一轮</button><button type="button" class="soft-button" id="portrait-home">回到小屋</button></div>`, 'portrait-shelf');
+ $$('[data-portrait-action]').forEach(button=>button.onclick=()=>startPortraitAction(button.dataset.portraitAction));
+ $('#portrait-again').onclick=()=>{if(mode==='portrait'&&session?.kind==='portrait'&&session.done&&session.pending===null)openPortrait();};
+ $('#portrait-home').onclick=showHome;
+ renderPortraitStatus('点小猫或下方按钮，陪它完成三个小心愿。');
+}
+function renderPortraitStatus(response){
+ if(mode!=='portrait'||session?.kind!=='portrait')return;
+ busy=session.pending!==null;
+ const wish=PORTRAIT_ACTIONS.find(action=>action.id===session.requests[session.count]);
+ $('#portrait-wish-label').textContent=session.done?'心愿完成 · 已获奖励':'小猫的小心愿';
+ $('#portrait-wish-text').textContent=session.done?'爱心 +2 · 亲密 +5 · 心情 +10':wish.request;
+ $('#portrait-wish-text').classList.toggle('is-reward',session.done);
+ $('#portrait-count').textContent=`${session.count} / 3`;
+ $('#portrait-progress').setAttribute('aria-valuenow',String(session.count));
+ $('#portrait-progress').setAttribute('aria-valuetext',`已完成 ${session.count} 个，共 3 个小心愿`);
+ $$('.portrait-marks i').forEach((mark,index)=>mark.classList.toggle('earned',index<session.count));
+ $$('[data-portrait-action]').forEach(button=>{
+  const action=PORTRAIT_ACTIONS.find(item=>item.id===button.dataset.portraitAction),active=session.pending===action.id;
+  button.setAttribute('aria-disabled',String(busy));
+  button.setAttribute('aria-busy',String(active));
+  button.classList.toggle('is-busy',active);
+  button.querySelector('.portrait-action-label').textContent=active?'回应中…':action.label;
+ });
+ $('#portrait-again').hidden=!session.done;
+ $('#portrait-again').disabled=busy;
+ $('#portrait-reassurance').hidden=session.done;
+ $('#portrait-response').textContent=response;
+}
+function startPortraitAction(action){
+ if(mode!=='portrait'||session?.kind!=='portrait'||!beginPortraitAction(session,action))return;
+ if(!world.interactPortrait(action)){
+  session.pending=null;
+  renderPortraitStatus('小猫还没准备好，等一下再试。');
+  return;
+ }
+ const spec=PORTRAIT_ACTIONS.find(item=>item.id===action);
+ renderPortraitStatus(`正在${spec.label}，等小猫回应一下。`);
+ if(spec.sound==='purr')purr(1.5);
+ else if(spec.sound==='meow')meow(breedOf().voice,'happy');
+ else tone(620,.18);
+}
+function completePortraitAction(action){
+ if(mode!=='portrait'||session?.kind!=='portrait')return;
+ const result=finishPortraitAction(session,action);
+ if(result==='ignored')return;
+ const spec=PORTRAIT_ACTIONS.find(item=>item.id===action);
+ let response=spec.response;
+ if(result==='miss'){
+  const wish=PORTRAIT_ACTIONS.find(item=>item.id===session.requests[session.count]);
+  response+=` 还想${wish.label}，慢慢来。`;
+ }else if(result==='complete'){
+  commit(reward(state,{id:session.id,hearts:2,bond:5,stat:'mood',amount:10,memory:'第一次近景陪伴：读懂了小猫的三个心愿，和它又亲近了一点。'}),true);
+  response+=' 喜欢的话，还可以继续陪我。';
+ }else if(result==='free')response+=' 这一轮完成啦，继续亲近也很好。';
+ renderPortraitStatus(response);
+}
 function pet(){if(!state.adopted){world.pet();say('摸摸可以，领回家更可以。');return;}if(!['home','wardrobe'].includes(mode))return;world.pet();if(Date.now()-lastPet>3000){lastPet=Date.now();commit(reward(state,{bond:1,stat:'mood',amount:2}));hearts();tone(570);}if(Math.random()<.4){meowNow('happy',state.bond>=35?'蹭蹭你！本喵已经认定这位人类。':'呼噜呼噜…已切换成小马达。');}else{purr(1.5);say(['再摸一下？再一下也行。','你的手被本喵征用了。','呼噜噜…这个位置，再久一点。'][Math.floor(Math.random()*3)]);}}
 function showDialog(title,summary,html){$('#album h2').textContent=title;$('#album-summary').textContent=summary;$('#memory-list').innerHTML=html;$('#album').showModal();world.setPaused(true);}
 function showAlbum(){showDialog('我们的喵喵纪念册',`${state.name}和你：${bondLevel(state).name}，亲密 ${state.bond}。`,`<div class="memory-stamps"><span>${icon('cat')}<b>${state.visits}</b><small>次回家</small></span><span>${icon('feed')}<b>${state.recipes.length}</b><small>种猫饭</small></span><span>${icon('map')}<b>${state.journeys}</b><small>次探险</small></span></div><div class="memory-book">${state.memories.map((m,i)=>`<article class="memory-ticket"><span class="memory-seal">${icon(['cat','heart','paw','gift','map'][i%5])}</span><div><small>回忆 ${String(i+1).padStart(2,'0')}</small><p>${esc(m)}</p></div></article>`).join('')}</div>`);}
@@ -111,7 +178,9 @@ document.addEventListener('keydown',e=>{const k=KEYMAP[e.key]||KEYMAP[e.key.toLo
 document.addEventListener('keyup',e=>{const k=KEYMAP[e.key]||KEYMAP[e.key.toLowerCase?.()];if(!k)return;if(pressed.delete(k))applyDrive();});
 window.addEventListener('blur',clearDrive);document.addEventListener('visibilitychange',()=>{if(document.hidden)clearDrive();});
 
-function worldEvent(type,data){if(!world)return;if(type==='input-mode'){$('.view-controls span').textContent={home:'方向键 / WASD 或摇杆走路 · 点地面走过去 · 点猫咪摸摸',wand:'拖动羽毛 · 箭头转视角',fetch:'点地面抛球 · 箭头转视角',hide:'点箱子找猫 · 箭头转视角',scrub:'在猫身上拖海绵',rinse:'在猫身上拖花洒',decorate:'拖动家具摆放，自动保存',explore:'摇杆走路 · 点地面走过去'}[data.mode]||'拖动看看 · 点猫咪摸摸';return;}
+function worldEvent(type,data){if(!world)return;if(type==='input-mode'){$('.view-controls span').textContent={home:'方向键 / WASD 或摇杆走路 · 点地面走过去 · 点猫咪摸摸',wand:'拖动羽毛 · 箭头转视角',fetch:'点地面抛球 · 箭头转视角',hide:'点箱子找猫 · 箭头转视角',scrub:'在猫身上拖海绵',rinse:'在猫身上拖花洒',decorate:'拖动家具摆放，自动保存',explore:'摇杆走路 · 点地面走过去',portrait:'拖动转视角 · 点头、下巴、鼻尖或前爪'}[data.mode]||'拖动看看 · 点猫咪摸摸';return;}
+ if(type==='portrait-touch'){if(mode==='portrait'&&session?.kind==='portrait')startPortraitAction(data.action);return;}
+ if(type==='portrait-complete'){if(mode==='portrait'&&session?.kind==='portrait')completePortraitAction(data.action);return;}
  if(type==='placement-blocked'){toast('这里放不下啦，给小猫和家具留点空间吧。');return;}
  if(type==='frame'){if(data.cat)catScreen=data.cat;for(const label of data.labels){const el=$(`[data-spot="${label.id}"]`);if(el){el.style.left=`${label.x}px`;el.style.top=`${label.y}px`;}}return;}
  if(type==='behavior'&&mode==='home')say(data.text);
