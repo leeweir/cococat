@@ -32,4 +32,10 @@ npm run check
 
 ## 发布
 
-推送到 `main` 后，GitHub Actions 构建并发布 `dist/` 到 GitHub Pages。仓库的 Pages 构建来源需设为 GitHub Actions。
+在线试玩：<https://leeweir.github.io/cococat/>。
+
+源码仓库 `leeweir/cat-adoption-game` 保持私有，推送到 `main` 后 GitHub Actions 执行检查，不直接发布 Pages。公开仓库 `leeweir/cococat` 只存放 `dist/` 内的网页成品及 `.nojekyll`，不上传开发源码、测试或本地存档。
+
+发布时运行 `npm run check`，将 `dist/` 内容同步到公开仓库根目录，移除上一版构建文件并保留 `.nojekyll`，提交并推送到 `main`。该仓库的 Pages 来源使用 **Deploy from a branch → main → / (root)**。
+
+生产资源路径固定为 `/cococat/`；本地开发仍使用根路径。构建后运行 `npm run preview`，在 `http://localhost:4175/cococat/` 验证生产版本。原 `/cat-adoption-game-pages/` 地址不再使用。
