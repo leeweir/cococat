@@ -80,6 +80,70 @@ test('all one hundred pieces fit three different body types without breaking the
  finiteGeometry(cats[0],'full outfit');
 });
 
+test('neck accessories hug the chest and do not lift away when the cat turns its head',()=>{
+ const point=new THREE.Vector3(),local=new THREE.Vector3(),closest=new THREE.Vector3(),triangle=new THREE.Triangle();
+ for(const breed of Object.keys(CAT_PROFILES)){
+  const cat=createCat(breed,{},{lod:'low'}),{body,head,anchors}=cat.userData,skin=anchors.torsoGeometry.attributes.position;
+  for(const piece of WARDROBE.filter(w=>w.slot==='neck')){
+   head.rotation.set(0,0,0);dressCat(cat,{neck:piece.id});cat.updateMatrixWorld(true);
+   const meshes=cat.userData.dress.meshes.filter(m=>m.isMesh);
+   for(const mesh of meshes){
+    const positions=mesh.geometry.attributes.position;
+    for(let i=0;i<positions.count;i+=Math.max(1,Math.floor(positions.count/6))){
+     local.fromBufferAttribute(positions,i).applyMatrix4(mesh.matrixWorld);body.worldToLocal(local);
+     // Nearest skin distance also works on the sides, where a front-only projection overstates the gap.
+     let gap=Infinity;
+     for(let j=0;j<skin.count;j+=3){
+      triangle.a.fromBufferAttribute(skin,j);triangle.b.fromBufferAttribute(skin,j+1);triangle.c.fromBufferAttribute(skin,j+2);
+      triangle.closestPointToPoint(local,closest);gap=Math.min(gap,local.distanceTo(closest));
+     }
+     assert.ok(gap<.18,`${breed} ${piece.id} floats ${gap.toFixed(3)} away from the chest`);
+    }
+   }
+   const resting=meshes.map(m=>point.fromBufferAttribute(m.geometry.attributes.position,0).applyMatrix4(m.matrixWorld).clone());
+   head.rotation.set(-.55,.35,.25);cat.updateMatrixWorld(true);
+   meshes.forEach((m,i)=>{
+    point.fromBufferAttribute(m.geometry.attributes.position,0).applyMatrix4(m.matrixWorld);
+    assert.ok(point.distanceTo(resting[i])<1e-6,`${breed} ${piece.id} lifts off the chest during a head turn`);
+   });
+  }
+  undressCat(cat);
+ }
+});
+
+test('a backpack and its straps stay over the torso instead of reaching the face or tail',()=>{
+ const point=new THREE.Vector3(),origin=new THREE.Vector3(),direction=new THREE.Vector3(),ray=new THREE.Raycaster(),material=new THREE.MeshBasicMaterial({side:THREE.DoubleSide});
+ for(const breed of Object.keys(CAT_PROFILES)){
+  const cat=createCat(breed,{back:'backpack'},{lod:'low'}),{body,anchors,dress}=cat.userData;
+  cat.updateMatrixWorld(true);anchors.torsoGeometry.computeBoundingBox();
+  const torso=anchors.torsoGeometry.boundingBox,bounds=new THREE.Box3();
+  for(const mesh of dress.meshes.filter(m=>m.isMesh)){
+   const positions=mesh.geometry.attributes.position;
+   for(let i=0;i<positions.count;i++){point.fromBufferAttribute(positions,i).applyMatrix4(mesh.matrixWorld);body.worldToLocal(point);bounds.expandByPoint(point);}
+  }
+  for(const axis of ['x','z']){
+   assert.ok(bounds.min[axis]>=torso.min[axis]-.12,`${breed} backpack extends too far along -${axis}`);
+   assert.ok(bounds.max[axis]<=torso.max[axis]+.12,`${breed} backpack extends too far along +${axis}`);
+  }
+  assert.ok(bounds.min.y>=torso.min.y-.08,`${breed} backpack straps hang below the belly`);
+  const surface=new THREE.Mesh(anchors.torsoGeometry,material),pouch=dress.meshes.find(m=>m.geometry instanceof THREE.BoxGeometry);
+  pouch.geometry.computeBoundingBox();point.set(0,pouch.geometry.boundingBox.min.y,0).applyMatrix4(pouch.matrixWorld);body.worldToLocal(point);
+  ray.set(origin.set(point.x,torso.max.y+1,point.z),direction.set(0,-1,0));
+  const support=ray.intersectObject(surface,false)[0],clearance=point.y-support.point.y;
+  assert.ok(clearance>=.025&&clearance<=.08,`${breed} pouch embeds in or floats above the back: ${clearance}`);
+  for(const strap of dress.meshes.filter(m=>m.parent===body&&m.geometry instanceof THREE.TubeGeometry)){
+   for(let i=1;i<10;i++){
+    strap.geometry.parameters.path.getPoint(i/10,point).applyMatrix4(strap.matrixWorld);body.worldToLocal(point);
+    ray.set(origin.set(0,0,0),direction.copy(point).normalize());
+    const skin=ray.intersectObject(surface,false).at(-1),gap=point.length()-skin.distance;
+    assert.ok(gap>=.035&&gap<=.09,`${breed} strap leaves the torso surface: ${gap}`);
+   }
+  }
+  undressCat(cat);
+ }
+ material.dispose();
+});
+
 test('changing clothes disposes the old pieces and leaves the cat itself intact',()=>{
  const cat=createCat('ragdoll',{},{lod:'low'});
  dressCat(cat,{head:'crown-gold',back:'wings-angel',feet:'sneakers'});

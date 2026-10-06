@@ -64,9 +64,8 @@ function context(cat){
  a.front??=surfaceProjector(a.torsoGeometry,{u:0,v:1,w:2});// chest depth at (x,y)
  a.top??=surfaceProjector(a.torsoGeometry,{u:0,v:2,w:1});// back height at (x,z)
  const [hw,hh,hd]=p.head;
- // Throat point in head space: under the chin, a little behind the muzzle.
- const neck={y:-hh*.82,z:hd*.18};
- return {d,p,a,hw,hh,hd,neck,crown:hh*.93,
+ return {d,p,a,hw,hh,hd,crown:hh*.93,
+  get neck(){return a.neck??=neckline(d);},
   backY:(x,z)=>a.top(x,z,p.body[1]*.8),chestZ:(x,y)=>a.front(x,y,p.front+.2),
   // Vertex-coloured shell over part of the torso, slightly inflated.
   shell(k,include,colorAt,offset=.024,extra={}){
@@ -164,21 +163,78 @@ const FACE={
   for(const side of [-1,1]){const hole=new THREE.Path();hole.absellipse(side*ex,ey,er*1.12,er*1.06,0,Math.PI*2,true);s.holes.push(hole);}
   x.decal(k,s,it.c[0],.02,'shiny');for(const side of [-1,1])k.ball(x.d.head,it.c[1],[side*(w-.01),ey+er*.3,x.a.projectFace(side*(w-.03),ey+er*.3,0)+.02],.022,'metal');}
 };
-// Neck pieces live in head space so they follow nods; the collar ring sits under the chin.
-function collar(k,x,color,thick=.032){const g=k.group(x.d.head,[0,x.neck.y,x.neck.z]);g.rotation.x=.42;const r=k.ring(g,color,[0,0,0],1,thick/x.hw,[Math.PI/2,0,0]);r.scale.set(x.hw*.78,x.hw*.78,x.hw*.7);return g;}
-const front=(x,dy=0)=>[0,x.neck.y-.02+dy,x.neck.z+x.hw*.72];
+// Reuse the same exact torso projection for collar sections and backpack straps.
+function torsoSampler(d){
+ const ray=new THREE.Ray(),a=V(0,0,0),b=V(0,0,0),c=V(0,0,0),hit=V(0,0,0),vertices=d.anchors.torsoGeometry.attributes.position;
+ return (center,direction,target)=>{
+  ray.set(center,direction);
+  // Remove trig residue at cardinal axes, which otherwise misses the shared edge at x=0.
+  for(let axis=0;axis<3;axis++)if(Math.abs(ray.direction.getComponent(axis))<1e-12)ray.direction.setComponent(axis,0);
+  let radius=0;
+  for(let j=0;j<vertices.count;j+=3){
+   a.fromBufferAttribute(vertices,j);b.fromBufferAttribute(vertices,j+1);c.fromBufferAttribute(vertices,j+2);
+   if(ray.intersectTriangle(a,b,c,false,hit))radius=Math.max(radius,hit.distanceTo(center));
+  }
+  if(!radius)throw new Error(`No torso surface for ${d.breed} clothing`);
+  return target.copy(center).addScaledVector(ray.direction,radius);
+ };
+}
+// Body-space attachment keeps a head turn from lifting the collar off the chest.
+const NECK_STEPS=48,NECK_TILT=.42;
+function neckline(d){
+ const sample=d.anchors.sampleTorso??=torsoSampler(d),center=V(0,.2,d.profile.front+.02),sin=Math.sin(NECK_TILT),cos=Math.cos(NECK_TILT),points=[];
+ for(let i=0;i<NECK_STEPS;i++){
+  const angle=i/NECK_STEPS*Math.PI*2,direction=V(Math.cos(angle),-Math.sin(angle)*sin,Math.sin(angle)*cos);
+  points.push({point:sample(center,direction,V(0,0,0)),direction});
+ }
+ return points;
+}
+const neckCurve=(x,thick)=>new THREE.CatmullRomCurve3(x.neck.map(({point,direction})=>point.clone().addScaledVector(direction,thick+.045)),true);
+function collar(k,x,color,thick=.032){const curve=neckCurve(x,thick);return k.add(x.d.body,new THREE.TubeGeometry(curve,96,thick,10,true),color);}
+const front=(x,dy=0)=>{const {point,direction}=x.neck[NECK_STEPS/4],y=point.y+direction.y*.077+dy;return [0,y,x.chestZ(0,y)+.07];};
+// Subdivide hanging fabric so the middle follows the chest too, not just its corners.
+function chestFabric(k,x,shape,color,anchor,depth=.012){
+ const solid=new THREE.ExtrudeGeometry(shape,{depth,bevelEnabled:false,curveSegments:20}),g=densify(solid,2);solid.dispose();
+ const p=g.attributes.position;
+ for(let i=0;i<p.count;i++){const cx=p.getX(i)+anchor[0],cy=p.getY(i)+anchor[1];p.setXYZ(i,cx,cy,x.chestZ(cx,cy)+.045+p.getZ(i));}
+ g.computeVertexNormals();return k.add(x.d.body,g,color);
+}
+function backpackFit(x){
+ const p=x.p,width=Math.min(.34,p.body[0]*.85),height=width*.6,length=p.body[2]*.55,backZ=p.rear*.12;
+ const tilt=Math.atan2(x.backY(0,backZ+length/2)-x.backY(0,backZ-length/2),length),sin=Math.sin(tilt),cos=Math.cos(tilt);
+ let floor=-Infinity;
+ for(const xx of [-width/2,0,width/2])for(let i=0;i<=4;i++){const zz=length*(i/4-.5);floor=Math.max(floor,x.backY(xx,backZ+zz*cos)-zz*sin);}
+ const y=floor+.035+height/2*cos,z=backZ-height/2*sin,sample=x.a.sampleTorso??=torsoSampler(x.d),center=V(0,0,0),direction=V(0,0,0),paths=[];
+ const attachment=(side,end)=>{const yy=-height*.32,zz=end*length*.38;return V(side*width*.38,y+yy*cos+zz*sin,z-yy*sin+zz*cos);};
+ for(const side of [-1,1]){
+  const raw=new THREE.CatmullRomCurve3([
+   attachment(side,1),
+   V(side*p.body[0]*.65,p.body[1]*.55,z+length*.45),
+   V(side*p.body[0]*.95,-p.body[1]*.15,z+length*.28),
+   V(side*p.body[0]*.9,-p.body[1]*.45,z-length*.25),
+   V(side*p.body[0]*.65,p.body[1]*.35,z-length*.5),
+   attachment(side,-1)
+  ]),points=raw.getPoints(40);
+  // Keep both ends inside the bag, and fit the intervening strap over skin and clothing.
+  for(let i=1;i<points.length-1;i++){direction.copy(points[i]).sub(center).normalize();sample(center,direction,points[i]).addScaledVector(direction,.06);}
+  paths.push(new THREE.CatmullRomCurve3(points));
+ }
+ return {width,height,length,y,z,tilt,paths};
+}
 const NECK={
- bow(k,x,it){const c=it.c;if(!it.small)collar(k,x,c[0]);const g=k.group(x.d.head,front(x,it.small?.03:0)),s=it.small?.7:1;for(const side of [-1,1]){const w=k.ball(g,c[0],[side*.075*s,0,0],[.075*s,.05*s,.035*s],'shiny');w.rotation.z=side*.32;}k.ball(g,c[1],[0,0,.02],.03*s,'shiny');},
- bell(k,x,it){const c=it.c;collar(k,x,c[0],.026);const g=k.group(x.d.head,front(x,-.02));k.ball(g,c[1],[0,-.03,0],.045,'metal');k.ring(g,'#b48a36',[0,-.03,0],.046,.006,[Math.PI/2,0,0],'metal');k.ball(g,'#5a4a2a',[0,-.06,.03],.008);},
- scarf(k,x,it){const c=it.c,g=collar(k,x,c[0],.06);const ring=g.children.at(-1);paint(ring.geometry,v=>toon(c[Math.floor(((Math.atan2(v.y,v.x)/Math.PI+1)*6))%c.length]));ring.material=k.mat('vertex');
-  const tail=k.group(x.d.head,[x.hw*.3,x.neck.y-.04,x.neck.z+x.hw*.55]);tail.rotation.z=.25;for(let i=0;i<4;i++)k.rbox(tail,c[i%c.length],[0,-.04-i*.06,0],[.1,.065,.035],.015);
-  k.animate(t=>tail.rotation.z=.25+Math.sin(t*2.3)*.07);},
- pearls(k,x,it){const g=k.group(x.d.head,[0,x.neck.y-.01,x.neck.z]);g.rotation.x=.42;for(let i=0;i<18;i++){const a=i/18*Math.PI*2;k.ball(g,it.c[0],[Math.cos(a)*x.hw*.8,0,Math.sin(a)*x.hw*.72],.022,'shiny');}},
- tie(k,x,it){const c=it.c;collar(k,x,'#ffffff',.018);const g=k.group(x.d.head,front(x,-.01));g.rotation.x=-.5;k.ball(g,c[0],[0,0,0],[.035,.03,.025]);const s=new THREE.Shape();s.moveTo(-.025,-.02);s.lineTo(.025,-.02);s.lineTo(.04,-.17);s.lineTo(0,-.21);s.lineTo(-.04,-.17);s.closePath();k.extrude(g,c[0],s,.014,[0,0,0]);k.ball(g,c[1],[0,-.11,.012],.009);},
- lei(k,x,it){const g=k.group(x.d.head,[0,x.neck.y-.02,x.neck.z]);g.rotation.x=.42;for(let i=0;i<14;i++){const a=i/14*Math.PI*2,f=k.group(g,[Math.cos(a)*x.hw*.82,0,Math.sin(a)*x.hw*.74]);for(let j=0;j<5;j++)k.ball(f,it.c[i%it.c.length],[Math.cos(j*1.26)*.03,Math.sin(j*1.26)*.03,0],[.03,.03,.014]);k.ball(f,'#ffe08a',[0,0,.01],.014);}},
- medal(k,x,it){const c=it.c;collar(k,x,c[1],.022);const g=k.group(x.d.head,front(x,-.05));k.cyl(g,c[0],[0,-.03,0],.055,.055,.016,'metal').rotation.x=Math.PI/2;const st=new THREE.Shape();for(let i=0;i<10;i++){const a=Math.PI/2+i*Math.PI/5,r=i%2?.016:.036;i?st.lineTo(Math.cos(a)*r,Math.sin(a)*r):st.moveTo(Math.cos(a)*r,Math.sin(a)*r);}k.extrude(g,'#f6e3a1',st,.008,[0,-.03,.012],'metal');},
- bib(k,x,it){const c=it.c,g=k.group(x.d.head,[0,x.neck.y-.02,x.neck.z+x.hw*.6]);g.rotation.x=-.45;const s=new THREE.Shape();s.absarc(0,0,x.hw*.55,Math.PI,Math.PI*2,false);s.closePath();k.extrude(g,c[0],s,.012,[0,0,0]);
-  const fish=k.group(g,[0,-x.hw*.25,.012]);k.ball(fish,c[1],[0,0,0],[.05,.03,.008]);k.cone(fish,c[1],[-.06,0,0],.025,.04,3).rotation.z=Math.PI/2;}
+ bow(k,x,it){const c=it.c;if(!it.small)collar(k,x,c[0]);const g=k.group(x.d.body,front(x)),s=it.small?.7:1;for(const side of [-1,1]){const w=k.ball(g,c[0],[side*.075*s,0,0],[.075*s,.05*s,.035*s],'shiny');w.rotation.z=side*.32;}k.ball(g,c[1],[0,0,.02],.03*s,'shiny');},
+ bell(k,x,it){const c=it.c;collar(k,x,c[0],.026);const g=k.group(x.d.body,front(x,-.02));k.ball(g,c[1],[0,-.03,0],.045,'metal');k.ring(g,'#b48a36',[0,-.03,0],.046,.006,[Math.PI/2,0,0],'metal');k.ball(g,'#5a4a2a',[0,-.06,.03],.008);},
+ scarf(k,x,it){const c=it.c,ring=collar(k,x,c[0],.06),uv=ring.geometry.attributes.uv;
+  const colors=new Float32Array(uv.count*3),palette=c.map(toon);for(let i=0;i<uv.count;i++)palette[Math.floor(uv.getX(i)*12)%c.length].toArray(colors,i*3);ring.geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));ring.material=k.mat('vertex');
+  const anchor=ring.geometry.parameters.path.getPoint(.2),tail=k.group(x.d.body,[anchor.x,anchor.y,0]);
+  for(let i=0;i<4;i++){const y=-.04-i*.06;k.rbox(tail,c[i%c.length],[0,y,x.chestZ(anchor.x,anchor.y+y)+.065],[.1,.065,.035],.015);}
+  k.animate(t=>tail.rotation.z=Math.sin(t*2.3)*.045);},
+ pearls(k,x,it){const curve=neckCurve(x,.022);for(let i=0;i<18;i++)k.ball(x.d.body,it.c[0],curve.getPointAt(i/18).toArray(),.022,'shiny');},
+ tie(k,x,it){const c=it.c;collar(k,x,'#ffffff',.018);const anchor=front(x,-.01);k.ball(x.d.body,c[0],anchor,[.035,.03,.025]);const s=new THREE.Shape();s.moveTo(-.025,-.02);s.lineTo(.025,-.02);s.lineTo(.04,-.17);s.lineTo(0,-.21);s.lineTo(-.04,-.17);s.closePath();chestFabric(k,x,s,c[0],anchor,.014);const y=anchor[1]-.11;k.ball(x.d.body,c[1],[0,y,x.chestZ(0,y)+.066],.009);},
+ lei(k,x,it){const curve=neckCurve(x,.04),forward=V(0,0,1);for(let i=0;i<14;i++){const a=i/14*Math.PI*2,f=k.group(x.d.body,curve.getPoint(i/14).toArray());f.quaternion.setFromUnitVectors(forward,V(Math.cos(a),-Math.sin(a)*Math.sin(NECK_TILT),Math.sin(a)*Math.cos(NECK_TILT)));for(let j=0;j<5;j++)k.ball(f,it.c[i%it.c.length],[Math.cos(j*1.26)*.03,Math.sin(j*1.26)*.03,0],[.03,.03,.014]);k.ball(f,'#ffe08a',[0,0,.01],.014);}},
+ medal(k,x,it){const c=it.c;collar(k,x,c[1],.022);const g=k.group(x.d.body,front(x,-.05));k.cyl(g,c[0],[0,-.03,0],.055,.055,.016,'metal').rotation.x=Math.PI/2;const st=new THREE.Shape();for(let i=0;i<10;i++){const a=Math.PI/2+i*Math.PI/5,r=i%2?.016:.036;i?st.lineTo(Math.cos(a)*r,Math.sin(a)*r):st.moveTo(Math.cos(a)*r,Math.sin(a)*r);}k.extrude(g,'#f6e3a1',st,.008,[0,-.03,.012],'metal');},
+ bib(k,x,it){const c=it.c,anchor=front(x),r=Math.min(x.p.body[0]*.7,x.p.body[1]*.72),s=new THREE.Shape();s.absarc(0,0,r,Math.PI,Math.PI*2,false);s.closePath();chestFabric(k,x,s,c[0],anchor);
+  const y=anchor[1]-r*.48,fish=k.group(x.d.body,[0,y,x.chestZ(0,y)+.07]);k.ball(fish,c[1],[0,0,0],[.05,.03,.008]);k.cone(fish,c[1],[-.06,0,0],.025,.04,3).rotation.z=Math.PI/2;}
 };
 
 // Sleeves wrap a leg segment; `part` is 'hip' (upper) or 'knee' (lower).
@@ -246,8 +302,11 @@ const BACK={
   if(it.wing==='dragon')wingPair(k,x,w=>{k.flat(w,c[0],outline([[0,0],[.12,.3],[.32,.4],[.46,.3],[.36,.18],[.34,.1],[.24,.04],[.2,0],[.1,-.04],[0,0]]),[0,0,0],'shiny');k.tube(w,c[1],[[0,0,.004],[.12,.3,.004],[.46,.3,.004]],.012);},{flap:.3,speed:2.5});
   if(it.wing==='fairy')wingPair(k,x,w=>{k.ball(w,c[0],[.16,.16,0],[.18,.07,.004],'glass').rotation.z=.6;k.ball(w,c[1],[.12,-.04,0],[.12,.05,.004],'glass').rotation.z=-.4;},{flap:.6,speed:7});
  },
- backpack(k,x,it){const c=it.c,z=-.02,y=x.backY(0,z),g=k.group(x.d.body,[0,y+.06,z]);k.rbox(g,c[0],[0,0,0],[.3,.14,.32],.05);k.rbox(g,c[1],[0,.02,-.17],[.2,.1,.05],.025);k.tube(g,'#ffffff',[[-.09,.075,.12],[0,.09,.15],[.09,.075,.12]],.01);
-  for(const s of [-1,1])k.ring(x.d.body,c[0],[s*x.p.body[0]*.78,.05,x.p.front*.35],1,.018/x.p.body[1],[0,Math.PI/2,0]).scale.set(1,x.p.body[1]*.75,x.p.body[1]*.75);},
+ backpack(k,x,it){const c=it.c,{width,height,length,y,z,tilt,paths}=x.a.backpack??=backpackFit(x),g=k.group(x.d.body,[0,y,z]);g.rotation.x=-tilt;
+  k.rbox(g,c[0],[0,0,0],[width,height,length],.05);k.rbox(g,c[1],[0,-height*.08,-length*.52],[width*.67,height*.6,.05],.025);
+  k.tube(g,'#ffffff',[[-width*.3,height/2+.015,length*.3],[0,height/2+.07,length*.3],[width*.3,height/2+.015,length*.3]],.01);
+  for(const path of paths)k.add(x.d.body,new THREE.TubeGeometry(path,80,.016,8,false),c[0]);
+ },
  turtle(k,x,it){const c=it.c,z=-.05,y=x.backY(0,z),g=k.group(x.d.body,[0,y-.1,z]);const dome=paint(new THREE.SphereGeometry(1,32,20,0,Math.PI*2,0,Math.PI/2),v=>{const a=Math.atan2(v.z,v.x),ring=v.y;return toon(c[0]).lerp(toon(c[1]),ss(Math.abs(Math.sin(a*3))+(ring>.75?1:0),.9,1)*.8);});
   k.add(g,dome,'vertex',[0,0,0],[x.p.body[0]*1.15,.22,Math.abs(x.p.rear)*1.2],'shiny');k.ring(g,c[1],[0,.005,0],1,.02,[Math.PI/2,0,0],'shiny').scale.set(x.p.body[0]*1.15,Math.abs(x.p.rear)*1.2,1);},
  snail(k,x,it){const c=it.c,z=-.05,y=x.backY(0,z),g=k.group(x.d.body,[0,y+.16,z]);g.rotation.y=Math.PI/2;const pts=[];for(let i=0;i<=60;i++){const t=i/60*Math.PI*4.2,r=.17*(1-i/68);pts.push(V(Math.cos(t)*r,Math.sin(t)*r,i*.0012));}
