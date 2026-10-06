@@ -3,7 +3,7 @@ export function blocked(x,z,obstacles,padding=.38){
  return obstacles.some(o=>o.type==='circle'?Math.hypot(x-o.x,z-o.z)<o.r+padding:x>o.x-o.w/2-padding&&x<o.x+o.w/2+padding&&z>o.z-o.d/2-padding&&z<o.z+o.d/2+padding);
 }
 export function clearSegment(a,b,obstacles,padding=.38){const n=Math.max(1,Math.ceil(Math.hypot(a.x-b.x,a.z-b.z)/.08));for(let i=0;i<=n;i++){const t=i/n;if(blocked(a.x+(b.x-a.x)*t,a.z+(b.z-a.z)*t,obstacles,padding))return false;}return true;}
-export function route(start,target,obstacles,bounds={minX:-3.55,maxX:3.55,minZ:-2.2,maxZ:2.3},padding=.38){
+export function route(start,target,obstacles,bounds={minX:-3.55,maxX:3.55,minZ:-2.4,maxZ:2.4},padding=.38){
  const step=.22,cols=Math.ceil((bounds.maxX-bounds.minX)/step)+1,rows=Math.ceil((bounds.maxZ-bounds.minZ)/step)+1;
  const point=id=>({x:bounds.minX+(id%cols)*step,z:bounds.minZ+Math.floor(id/cols)*step});
  const available=[];for(let id=0;id<cols*rows;id++){const p=point(id);if(p.x<=bounds.maxX&&p.z<=bounds.maxZ&&!blocked(p.x,p.z,obstacles,padding))available.push(id);}

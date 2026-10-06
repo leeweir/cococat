@@ -32,4 +32,10 @@ npm run check
 
 ## 发布
 
-推送到 `main` 后，GitHub Actions 构建并发布 `dist/` 到 GitHub Pages。仓库的 Pages 构建来源需设为 GitHub Actions。
+在线试玩：<https://leeweir.github.io/cococat/>。
+
+公开源码仓库：<https://github.com/leeweir/cococat>。源码、检查和 Pages 发布统一在这一个仓库中，不再使用独立的网页成品仓库。
+
+推送到 `main` 后，GitHub Actions 自动安装依赖、运行 `npm run check`，再将 `dist/` 部署到 GitHub Pages。也可以在 Actions 中手动运行 **Publish cococat**。仓库的 Pages 构建来源使用 **GitHub Actions**；`dist/` 无需提交。
+
+生产资源路径固定为 `/cococat/`；本地开发仍使用根路径。构建后运行 `npm run preview`，在 `http://localhost:4175/cococat/` 验证生产版本。

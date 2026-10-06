@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
-import {BREEDS} from './state.js';
+import {BREEDS,WALL_THEMES,FLOOR_THEMES} from './state.js';
 import {createCat,poseLegs,syncEyelids} from './cat-model.js';
+import {dressCat,undressCat,animateOutfit} from './outfit-model.js';
 export {createCat} from './cat-model.js';
 const C={pink:0xd9b9a4,pale:0xf0e6d3,purple:0x9aaa89,deep:0x697b65,blue:0x9cbbbf,cream:0xfff5df,ink:0x5d5141};
 const materials=new Map();
@@ -24,14 +25,21 @@ function labelTexture(text,bg='#fff5fa',color='#9c79ab'){const canvas=document.c
 function sign(p,text,pos,w=1.6,h=.8,bg,color){const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:labelTexture(text,bg,color)}));m.position.set(...pos);p.add(m);return m;}
 function plant(p,x,z,color=0xb9cba1,size=1){const g=group(p,[x,0,z]);g.scale.setScalar(size);cyl(g,0xf2cfbc,[0,.24,0],.27,.20,.45);for(let i=0;i<7;i++){const a=i*2.4;const leaf=ball(g,color,[Math.cos(a)*.19,.53+i*.045,Math.sin(a)*.19],[.13,.28,.1]);leaf.rotation.z=Math.cos(a)*.65;}return g;}
 function flower(p,x,y,z,color){const g=group(p,[x,y,z]);for(let i=0;i<5;i++){const a=i*Math.PI*2/5;ball(g,color,[Math.cos(a)*.16,Math.sin(a)*.16,0],[.105,.105,.04]);}ball(g,0xffe3a2,[0,0,.04],[.075,.075,.04]);return g;}
-function roomBase(p,color=0xeee5d5){
+function roomBase(p,color=0xeee5d5,own=false){
  box(p,0xb88c60,[0,-.21,0],[9,.40,6.4],.10);
- for(let row=0;row<12;row++)for(let col=0;col<4;col++){const x=-3.34+col*2.23;box(p,(row+col)%3===0?0xd8b58c:0xd4b38a,[x,.004,-2.88+row*.525],[2.218,.06,.512],.008);}
- box(p,color,[0,1.55,-3.05],[8.96,3.2,.18],.025);
- box(p,0xf0e8d9,[-4.43,.77,0],[.14,1.65,6.18],.035);
+ const planks=[];
+ for(let row=0;row<12;row++)for(let col=0;col<4;col++){const x=-3.34+col*2.23,tone=(row+col)%3===0?0:1;const m=box(p,tone?0xd4b38a:0xd8b58c,[x,.004,-2.88+row*.525],[2.218,.06,.512],.008);m.userData.tone=tone;planks.push(m);}
+ const wall=box(p,color,[0,1.55,-3.05],[8.96,3.2,.18],.025);
+ const side=box(p,0xf0e8d9,[-4.43,.77,0],[.14,1.65,6.18],.035);
  box(p,0xc99f72,[0,.12,-2.92],[8.8,.19,.09],.015);
  for(let i=0;i<15;i++)box(p,0xd5c8b5,[-4.15+i*.6,.55,-2.94],[.025,.88,.022],.001);
  box(p,0xd5c8b5,[0,1,-2.94],[8.8,.035,.023],.004);
+ if(!own)return {wall,side,planks};
+ // Own materials so the room can be recoloured without touching the shared colour cache.
+ const tones=[mat(0xd8b58c).clone(),mat(0xd4b38a).clone()];for(const m of tones)m.userData.own=true;
+ for(const m of planks)m.material=tones[m.userData.tone];
+ for(const m of [wall,side]){m.material=m.material.clone();m.material.userData.own=true;}
+ return {wall,side,planks,tones};
 }
 function windowProp(p,x,y,z){
  box(p,0xc99f72,[x,y,z],[2.52,1.88,.16],.08);box(p,0xe9f0d9,[x,y,z+.09],[2.30,1.66,.035],.05);
@@ -80,7 +88,7 @@ export class CatWorld{
  for(let i=0;i<3;i++){const b=box(p,[0x89977b,0xd1b386,0xbd896d][i],[1.9,.08+i*.1,-.1],[.55,.10,.40],.015);b.rotation.y=i*.14;}
  ball(p,0xc79578,[-1.7,.16,.7],[.16,.16,.16]);for(let i=0;i<4;i++)torus(p,0xead7b9,[-1.7,.16,.7],.161,.006,[i*.5,0,i*.8]);
 }
- buildHome(){const p=this.environment('home');roomBase(p);windowProp(p,-1.8,2,-2.87);sofa(p);this.closet=wardrobe(p);
+ buildHome(){const p=this.environment('home');this.homeRoom=roomBase(p,undefined,true);windowProp(p,-1.8,2,-2.87);sofa(p);this.closet=wardrobe(p);
  const rug=cyl(p,0xccbf9f,[.35,.045,.5],1.85,1.85,.022);rug.scale.z=.72;for(let i=0;i<8;i++){const r=torus(p,i%2?0xe3d4b8:0xb4aa8b,[.35,.061,.5],1.53+i*.039,.006);r.scale.z=.72;}
  box(p,0xc99f72,[.6,.35,-2.28],[2.18,.55,.83],.035);for(const x of [-.22,1.42])for(const z of [-2.5,-2.05])cyl(p,0x997451,[x,.09,z],.035,.045,.18);
  for(let i=0;i<2;i++)box(p,0xb88c60,[.05+i*1.1,.36,-1.853],[1.03,.41,.035],.025);this.tv=television(p,[.6,1.30,-2.23]);
@@ -102,6 +110,12 @@ export class CatWorld{
  box(p,0xc99f72,[2.75,.22,-1.3],[1.57,.40,.85],.06);plant(p,-3.6,.9,0x9caa7d,.8);
  }
  setCat(id,outfit){if(this.cat){this.scene.remove(this.cat);disposeCat(this.cat);}this.cat=createCat(id,outfit);this.scene.add(this.cat);this.cat.rotation.y=.07;this.placeCat();}
+ // Swaps only the clothes: the sculpted cat and its position stay put.
+ dress(outfit){if(this.cat)dressCat(this.cat,outfit);return this.cat;}
+ setRoomTheme({wall,floor}={}){const r=this.homeRoom;if(!r?.tones)return;
+ const w=WALL_THEMES.find(t=>t.id===wall)||WALL_THEMES[0],f=FLOOR_THEMES.find(t=>t.id===floor)||FLOOR_THEMES[0];
+ r.wall.material.color.set(w.color);r.side.material.color.set(w.color).lerp(new THREE.Color(0xffffff),.34);
+ r.tones[0].color.set(f.colors[0]);r.tones[1].color.set(f.colors[1]);this.roomTheme={wall:w.id,floor:f.id};}
  placeCat(){if(!this.cat)return;this.cat.scale.setScalar(this.cat.userData.baseScale*(['adopt','wardrobe'].includes(this.currentScene)?1:this.currentScene==='bath'?.86:.68));const y=this.currentScene==='bath'?.28:this.currentScene==='wardrobe'?.32:.06;const z=['home','tv'].includes(this.currentScene)?1.65:this.currentScene==='wardrobe'?.25:0;this.cat.position.set(0,y,z);this.baseY=y;this.baseZ=z;}
  setScene(name){this.currentScene=name;for(const [id,g]of Object.entries(this.environments))g.visible=id===(name==='tv'?'home':name);this.placeCat();this.resetCamera();if(this.bowl)this.bowl.visible=false;}
  resetCamera(){
@@ -121,7 +135,26 @@ export class CatWorld{
  startAction(id){this.action=id;this.actionStarted=this.elapsed;this.bowl.visible=id==='feed';this.food.visible=true;}
  finishAction(){this.action=null;if(this.food)this.food.visible=false;}
  pet(){this.petUntil=this.elapsed+1.6;}
- thumbnails(){const shots={};const old=this.renderer.getSize(new THREE.Vector2()),bg=this.scene.background;const renderScene=new THREE.Scene();renderScene.add(new THREE.HemisphereLight(0xffffff,0xc2bba6,1.7));const light=new THREE.DirectionalLight(0xffffff,2);light.position.set(-3,6,5);renderScene.add(light);renderScene.environment=this.scene.environment;renderScene.environmentIntensity=.45;const cam=new THREE.PerspectiveCamera(32,1,.1,20);cam.position.set(2.5,2.3,5.6);cam.lookAt(0,1.2,.05);this.renderer.setSize(160,160,false);this.renderer.setClearColor(0xfff5fa,0);for(const b of BREEDS){const cat=createCat(b.id);cat.rotation.y=.13;renderScene.add(cat);const bounds=new THREE.Box3().setFromObject(cat),center=bounds.getCenter(new THREE.Vector3()),height=bounds.max.y-bounds.min.y;cam.position.set(2.3,center.y+1.05,Math.max(4.8,height*2.0));cam.lookAt(center);this.renderer.render(renderScene,cam);shots[b.id]=this.canvas.toDataURL('image/png');renderScene.remove(cat);disposeCat(cat);}this.renderer.setClearColor(0xf5eee4,1);this.renderer.setSize(old.x,old.y,false);return shots;}
+ // Progressive: one breed per frame so the main loop (and the rest of the UI) keeps running.
+ thumbnails(onShot){
+ const renderScene=new THREE.Scene();renderScene.add(new THREE.HemisphereLight(0xffffff,0xc2bba6,1.7));const light=new THREE.DirectionalLight(0xffffff,2);light.position.set(-3,6,5);renderScene.add(light);renderScene.environment=this.scene.environment;renderScene.environmentIntensity=.45;
+ const cam=new THREE.PerspectiveCamera(32,1,.1,20);const queue=BREEDS.map(b=>b.id);
+ const shoot=()=>{
+  const id=queue.shift();
+  if(id===undefined){renderScene.clear();return;}
+  const old=this.renderer.getSize(new THREE.Vector2());
+  try{
+   this.renderer.setSize(160,160,false);this.renderer.setClearColor(0xfff5fa,0);
+   const cat=createCat(id,{},{lod:'low'});cat.rotation.y=.13;renderScene.add(cat);
+   const bounds=new THREE.Box3().setFromObject(cat),center=bounds.getCenter(new THREE.Vector3()),height=bounds.max.y-bounds.min.y;
+   cam.position.set(2.3,center.y+1.05,Math.max(4.8,height*2.0));cam.lookAt(center);
+   this.renderer.render(renderScene,cam);const url=this.canvas.toDataURL('image/png');
+   renderScene.remove(cat);disposeCat(cat);onShot?.(id,url);
+  }finally{this.renderer.setClearColor(0xf5eee4,1);this.renderer.setSize(old.x,old.y,false);}
+  requestAnimationFrame(shoot);
+ };
+ requestAnimationFrame(shoot);
+ }
  animate(){requestAnimationFrame(()=>this.animate());const now=performance.now(),dt=Math.min((now-this.lastTime)/1000,.05);this.lastTime=now;if(!this.uiBlocked)this.elapsed+=dt;const t=this.elapsed;this.controls.update();if(this.uiBlocked){this.renderer.render(this.scene,this.camera);return;}if(this.cat){const {rig,head,tail,eyes,legs}=this.cat.userData;const at=t-(this.actionStarted||0);rig.position.y=this.reduced?0:Math.sin(t*2)*.025;rig.rotation.set(0,0,0);head.rotation.set(0,Math.sin(t*.65)*.055,Math.sin(t*.5)*.025);tail.rotation.z=Math.sin(t*2)*.13;this.cat.position.set(0,this.baseY,this.baseZ);this.cat.rotation.y=.07;const blink=Math.sin(t*1.5)> .994?.1:1;eyes.forEach(e=>e.scale.y=blink);poseLegs(this.cat,0,0,0);
  if(this.action==='feed'){head.rotation.x=.23+Math.sin(at*7)*.13;rig.rotation.x=.12;this.cat.position.z=.82;tail.rotation.z=Math.sin(at*5)*.18;}
  if(this.action==='bath'){rig.rotation.z=Math.sin(at*12)*.06;head.rotation.z=Math.sin(at*7)*.12;eyes.forEach(e=>e.scale.y=.7);legs.forEach((l,i)=>l.rotation.x=Math.sin(at*8+i*Math.PI)*.3);}
@@ -133,12 +166,12 @@ export class CatWorld{
  if(this.tv){this.tv.fish.position.x=Math.sin(t*1.7)*.53;this.tv.fish.position.y=Math.sin(t*2.1)*.11;this.tv.fish.rotation.y=Math.cos(t*1.7)<0?Math.PI:0;}
  if(this.butterfly){this.butterfly.position.set(Math.sin(t*1.6)*1.5,1.8+Math.sin(t*2)*.25,.3+Math.cos(t*1.6)*.7);this.butterfly.children.forEach((m,i)=>{if(i<2)m.rotation.y=Math.sin(t*18)*(i?1:-1);});}
  if(this.foam&&this.environments.bath.visible){this.foam.children.forEach((m,i)=>m.position.y=.67+Math.sin(t*2+i)*.07);this.drops.visible=this.action==='bath';this.drops.children.forEach((m,i)=>m.position.y=.7+((i*.17-t*1.5)%2.1+2.1)%2.1);}
- this.updateLiving?.(dt,t);if(this.cat)syncEyelids(this.cat);
+ this.updateLiving?.(dt,t);if(this.cat){syncEyelids(this.cat);animateOutfit(this.cat,t);}
  this.renderer.render(this.scene,this.camera);
  }
- inspect(){return {scene:this.currentScene,breed:this.cat?.userData.breed,outfit:this.cat?.userData.outfit,catMeshes:this.cat?(()=>{let n=0;this.cat.traverse(o=>{if(o.isMesh)n++;});return n;})():0,renderer:this.renderer.info.render,canvas:{width:this.canvas.width,height:this.canvas.height},camera:this.camera.position.toArray()};}
+ inspect(){return {scene:this.currentScene,breed:this.cat?.userData.breed,outfit:this.cat?.userData.outfit?{...this.cat.userData.outfit}:{},roomTheme:this.roomTheme,pos:typeof this.pos?.z==='number'?[this.pos.x,this.pos.y,this.pos.z]:null,behavior:this.behavior,mode:this.mode,drive:this.drive?[this.drive.x,this.drive.y]:null,furniture:this.furnitureMeshes?[...this.furnitureMeshes.keys()]:[],catMeshes:this.cat?(()=>{let n=0;this.cat.traverse(o=>{if(o.isMesh)n++;});return n;})():0,renderer:this.renderer.info.render,canvas:{width:this.canvas.width,height:this.canvas.height},camera:this.camera.position.toArray()};}
 }
 
-function disposeCat(cat){if(cat.userData.ownedGeometries){for(const g of cat.userData.ownedGeometries)g.dispose();for(const m of cat.userData.ownedMaterials){m.map?.dispose();m.dispose();}return;}cat.traverse(o=>{if(!o.isMesh)return;if(o.geometry!==sphereGeo)o.geometry.dispose();if(o.material.type==='MeshBasicMaterial')o.material.dispose();});}
+function disposeCat(cat){if(cat.userData.dress)undressCat(cat);if(cat.userData.ownedGeometries){for(const g of cat.userData.ownedGeometries)g.dispose();for(const m of cat.userData.ownedMaterials){m.map?.dispose();m.dispose();}return;}cat.traverse(o=>{if(!o.isMesh)return;if(o.geometry!==sphereGeo)o.geometry.dispose();if(o.material.type==='MeshBasicMaterial'||o.material.userData.own)o.material.dispose();});}
 
 export {THREE, C, group, ball, box, cyl, tube, torus, star, flower, plant, sign, mesh, createCat as makeCat, disposeCat};

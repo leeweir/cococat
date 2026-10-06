@@ -1,4 +1,4 @@
-name: Publish cat cottage
+name: Publish cococat
 on:
   push:
     branches: [main]

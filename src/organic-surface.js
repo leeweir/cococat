@@ -28,3 +28,25 @@ export function fineFur(geometry,colorAt,count=6000,length=.042,mask=()=>true){
  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));g.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
  const m=new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.38,depthWrite:false});const fur=new THREE.LineSegments(g,m);fur.userData.fur=true;return fur;
 }
+// Height of the outermost surface along one axis, e.g. the face seen from +z or the back seen from +y.
+// Exact barycentric lookup in a bucket grid: the same result as a raycast, without testing every triangle.
+export function surfaceProjector(geometry,{u=0,v=1,w=2,cell=.05}={}){
+ const p=geometry.attributes.position.array,buckets=new Map(),key=(i,j)=>(i+2048)*4096+(j+2048);
+ for(let o=0;o<p.length;o+=9){
+  const au=p[o+u],av=p[o+v],bu=p[o+3+u],bv=p[o+3+v],cu=p[o+6+u],cv=p[o+6+v];
+  for(let i=Math.floor(Math.min(au,bu,cu)/cell);i<=Math.floor(Math.max(au,bu,cu)/cell);i++)for(let j=Math.floor(Math.min(av,bv,cv)/cell);j<=Math.floor(Math.max(av,bv,cv)/cell);j++){const k=key(i,j);if(!buckets.has(k))buckets.set(k,[]);buckets.get(k).push(o);}
+ }
+ // The outermost hit is the largest coordinate; inner/back faces always lie below it.
+ return (a,b,fallback)=>{
+  let best=-Infinity;
+  for(const o of buckets.get(key(Math.floor(a/cell),Math.floor(b/cell)))||[]){
+   const au=p[o+u],av=p[o+v],bu=p[o+3+u],bv=p[o+3+v],cu=p[o+6+u],cv=p[o+6+v],d=(bv-cv)*(au-cu)+(cu-bu)*(av-cv);
+   if(!d)continue;
+   const l1=((bv-cv)*(a-cu)+(cu-bu)*(b-cv))/d,l2=((cv-av)*(a-cu)+(au-cu)*(b-cv))/d,l3=1-l1-l2;
+   if(l1<-1e-7||l2<-1e-7||l3<-1e-7)continue;
+   const h=l1*p[o+w]+l2*p[o+3+w]+l3*p[o+6+w];if(h>best)best=h;
+  }
+  if(best===-Infinity){if(fallback!==undefined)return fallback;throw new Error(`Point outside surface: ${a}, ${b}`);}
+  return best;
+ };
+}
