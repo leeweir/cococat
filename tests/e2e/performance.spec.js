@@ -116,7 +116,7 @@ test("placement bursts coalesce and scene exit flushes the latest furniture", as
   ).toEqual(result.live);
 });
 
-test("returning to adoption creates thumbnails once and reused cards stay ready", async ({
+test("returning to adoption loads static portraits once without GPU thumbnail renders", async ({
   page,
 }) => {
   async function restart() {
@@ -126,9 +126,11 @@ test("returning to adoption creates thumbnails once and reused cards stay ready"
   }
   await restart();
   await expect(page.locator(".cat-option.ready")).toHaveCount(BREEDS.length);
-  expect((await world(page)).thumbnailShots).toBe(BREEDS.length);
+  expect((await world(page)).portraitLoads).toBe(BREEDS.length);
+  expect((await world(page)).thumbnailShots).toBe(0);
   await page.locator("#adopt-form button[type=submit]").click();
   await restart();
   await expect(page.locator(".cat-option.ready")).toHaveCount(BREEDS.length);
-  expect((await world(page)).thumbnailShots).toBe(BREEDS.length);
+  expect((await world(page)).portraitLoads).toBe(BREEDS.length);
+  expect((await world(page)).thumbnailShots).toBe(0);
 });

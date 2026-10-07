@@ -1,0 +1,24 @@
+<!doctype html><html><meta charset="utf-8"><style>html,body{margin:0;background:#f5eee4}canvas{display:block;width:100vw;height:100vh}</style><canvas id="pet"></canvas><script type="module">
+import * as THREE from 'three';
+import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
+import {createCat,poseLegs,syncEyelids} from '../src/cat-model.js';
+import {preparePetAsset} from '../src/pet-assets.js';
+import {disposeCat} from '../src/world.js';
+import {updatePetMotion} from '../src/pet-motion.js';
+const renderer=new THREE.WebGLRenderer({canvas:document.querySelector('canvas'),antialias:true,preserveDrawingBuffer:true});
+renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(1);renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.outputColorSpace=THREE.SRGBColorSpace;
+const scene=new THREE.Scene();scene.background=new THREE.Color('#f5eee4');
+scene.add(new THREE.HemisphereLight('#ffffff','#c3b599',1.1));
+const sun=new THREE.DirectionalLight('#fff4e3',2.1);sun.position.set(-3,7,5);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);Object.assign(sun.shadow.camera,{left:-2,right:2,top:3,bottom:-2});sun.shadow.normalBias=.02;scene.add(sun);
+const fill=new THREE.DirectionalLight('#d7e6e2',.6);fill.position.set(4,3,-3);scene.add(fill);
+const env=new RoomEnvironment(),pmrem=new THREE.PMREMGenerator(renderer);scene.environment=pmrem.fromScene(env,.04).texture;scene.environmentIntensity=.45;env.dispose();pmrem.dispose();
+const floor=new THREE.Mesh(new THREE.PlaneGeometry(20,20),new THREE.MeshStandardMaterial({color:'#f5eee4',roughness:1}));floor.rotation.x=-Math.PI/2;floor.position.y=-.01;floor.receiveShadow=true;scene.add(floor);
+const camera=new THREE.PerspectiveCamera(32,innerWidth/innerHeight,.1,30);let cat;
+window.__petStudio={async show(breed,{angle=.32,phase=0,openness=1,outfit={}}={}){
+  await preparePetAsset(breed);if(cat){scene.remove(cat);disposeCat(cat);}cat=createCat(breed,outfit);cat.rotation.y=angle;scene.add(cat);
+  poseLegs(cat,phase,phase?.32:0,phase?.10:0);cat.userData.eyes.forEach(e=>e.scale.y=openness);syncEyelids(cat);
+  const p=cat.userData.profile,height=(p.headY+p.head[1]+p.ear+.12)*p.scale,targetY=height*.49,distance=Math.max(4.1,height*2.18);
+  cat.updateMatrixWorld(true);cat.userData.skin.computeBoundingBox();const bounds=new THREE.Box3().setFromObject(cat),center=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3());const fitted=Math.max(distance,size.x*2.15);camera.position.set(center.x,targetY+fitted*.15,center.z+fitted);camera.lookAt(center.x,targetY,center.z);renderer.render(scene,camera);
+  return {breed,triangles:renderer.info.render.triangles,calls:renderer.info.render.calls,skinTriangles:cat.userData.skin.geometry.index.count/3,assetSkin:cat.userData.skin.geometry.attributes.position.count};
+},render(){renderer.render(scene,camera);}};
+</script></html>

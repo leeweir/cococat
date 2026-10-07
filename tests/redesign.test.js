@@ -30,8 +30,10 @@ test('thirty-four silhouettes each have four articulated paws and finite grounde
    }
    for(const scale of [.1,.44,1,.7,1]){
     eye.scale.y=scale;syncEyelids(cat);
-    assert.equal(eye.visible,scale>=.45);
-    assert.equal(eye.userData.lid.visible,scale<.45);
+    assert.equal(eye.visible,scale>.07);
+    assert.equal(eye.userData.lid.visible,scale<.15);
+    assert.ok(Math.abs(eye.scale.y*mesh.scale.y-1)<1e-6,'blinking must occlude the iris, not squash it');
+    assert.equal(eye.userData.lids.length,2);
    }
   }
   for(const phase of [0,.12,.4,.66,.88,1]){

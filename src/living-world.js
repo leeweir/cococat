@@ -1,6 +1,7 @@
 import {ROOM_OBSTACLES,furnitureRadius,validPlacement,navPadding,bodyClearance} from './furniture-layout.js';
 import {route,blocked,clearSegment} from './navigation.js';
-import {poseLegs,syncEyelids} from './cat-model.js';
+import {poseLegs,syncEyelids,skinRegion} from './cat-model.js';
+import {blinkAt} from './pet-eyes.js';
 import {CatWorld,THREE,C,group,ball,box,cyl,tube,torus,star,flower,plant,sign,mesh,makeCat,disposeCat} from './world.js';
 import {PERSONALITIES,FURNITURE_BY_ID,normalizeTreasureDisplay} from './state.js';
 import {createTreasureDisplay} from './treasure-display.js';
@@ -41,7 +42,7 @@ export class LivingWorld extends CatWorld {
   rig.position.set(0,Math.sin(t*2)*.008*motion,0);rig.rotation.set(0,0,0);
   head.position.set(0,profile.headY,profile.headZ);head.rotation.set(0,Math.sin(t*.65)*.025*motion,0);tail.rotation.set(0,0,Math.sin(t*1.6)*.08*motion);
   for(const leg of legs)leg.rotation.z=0;
-  const active=this.portraitAction;let openness=Math.sin(t*1.5)>.994?.1:1;
+  const active=this.portraitAction;let openness=blinkAt(t);
   if(active){
    const u=limit((t-active.start)/active.duration,0,1),ease=THREE.MathUtils.smoothstep(u,0,.25)*(1-THREE.MathUtils.smoothstep(u,.72,1));
    openness=1;
@@ -214,17 +215,23 @@ export class LivingWorld extends CatWorld {
   this.pointer.set((e.clientX-r.left)/r.width*2-1,-(e.clientY-r.top)/r.height*2+1);this.camera.updateMatrixWorld();this.cat.updateMatrixWorld(true);this.ray.setFromCamera(this.pointer,this.camera);
   const hits=this.portraitHits;hits.length=0;this.ray.intersectObject(this.cat,true,hits);
   const {head,legs,profile,anchors}=this.cat.userData;
+  const headAction=point=>{
+   const p=head.worldToLocal(this.portraitPoint.copy(point));
+   if(Math.abs(p.x)<profile.head[0]*.21&&Math.abs(p.y-anchors.noseY)<.07&&p.z>anchors.noseZ-.09)return 'nose';
+   if(p.y<anchors.noseY-.075&&Math.abs(p.x)<profile.head[0]*.65&&p.z>.05)return 'chin';
+   return 'head';
+  };
   for(const hit of hits){
    let visible=true;for(let o=hit.object;o;o=o.parent)if(!o.visible){visible=false;break;}
    if(!visible)continue;
+   if(hit.object===this.cat.userData.skin){
+    const region=skinRegion(hit);if(region==='paw')return 'paw';if(region==='head')return headAction(hit.point);return null;
+   }
    for(let o=hit.object;o&&o!==this.cat;o=o.parent){
     if(legs.includes(o))return 'paw';
     if(o===head){
      // Breed-local face coordinates survive camera orbit, head tilt and differently sized skulls.
-     const p=head.worldToLocal(this.portraitPoint.copy(hit.point));
-     if(Math.abs(p.x)<profile.head[0]*.21&&Math.abs(p.y-anchors.noseY)<.07&&p.z>anchors.noseZ-.09)return 'nose';
-     if(p.y<anchors.noseY-.075&&Math.abs(p.x)<profile.head[0]*.65&&p.z>.05)return 'chin';
-     return 'head';
+     return headAction(hit.point);
     }
    }
    return null; // A torso hit must not reach through the cat to a hidden face or paw.
@@ -292,7 +299,7 @@ export class LivingWorld extends CatWorld {
  // Rabbits hop: a paired-leg gait with a little lift each stride; everyone else just bobs.
  rig.position.y=(this.cat.userData.hop?Math.abs(Math.sin(this.gait*Math.PI*2))*.07:Math.sin(this.gait*Math.PI*4)*.012)*this.walkBlend;
  rig.rotation.z=Math.sin(this.gait*Math.PI*2)*.014*this.walkBlend;
- poseLegs(this.cat,this.gait,.40*this.walkBlend,.12*this.walkBlend);
+ this.cat.userData.gait=this.gait;const stride=this.cat.userData.hop?.28:this.cat.userData.species==='dog'?.36:.40;poseLegs(this.cat,this.gait,stride*this.walkBlend,.12*this.walkBlend);
  if(this.mode==='wand'&&this.wandTarget){const d=Math.hypot(this.pos.x-this.wandTarget.x,this.pos.z-this.wandTarget.z);if(d<.34&&t-this.lastCatch>1.1&&this.lastWand.distanceTo(this.wandTarget)>.6){this.lastCatch=t;this.lastWand.copy(this.wandTarget);this.pose('pounce',.65);this.emit('wand-catch');}this.feather.rotation.z=Math.sin(t*7)*.15;}
  if(this.mode==='fetch'){
  if(this.ballPhase==='flying'){

@@ -1,0 +1,240 @@
+[
+  {
+    "breed": "calico",
+    "file": "calico-full.glb",
+    "bytes": 361368,
+    "triangles": 18924,
+    "bones": 14
+  },
+  {
+    "breed": "ragdoll",
+    "file": "ragdoll-full.glb",
+    "bytes": 386728,
+    "triangles": 20536,
+    "bones": 14
+  },
+  {
+    "breed": "maine",
+    "file": "maine-full.glb",
+    "bytes": 395864,
+    "triangles": 20608,
+    "bones": 14
+  },
+  {
+    "breed": "persian",
+    "file": "persian-full.glb",
+    "bytes": 370684,
+    "triangles": 19932,
+    "bones": 14
+  },
+  {
+    "breed": "orange",
+    "file": "orange-full.glb",
+    "bytes": 365932,
+    "triangles": 19316,
+    "bones": 14
+  },
+  {
+    "breed": "blue",
+    "file": "blue-full.glb",
+    "bytes": 363092,
+    "triangles": 19664,
+    "bones": 14
+  },
+  {
+    "breed": "siamese",
+    "file": "siamese-full.glb",
+    "bytes": 356084,
+    "triangles": 18560,
+    "bones": 14
+  },
+  {
+    "breed": "black",
+    "file": "black-full.glb",
+    "bytes": 353840,
+    "triangles": 19456,
+    "bones": 14
+  },
+  {
+    "breed": "white",
+    "file": "white-full.glb",
+    "bytes": 360512,
+    "triangles": 19612,
+    "bones": 14
+  },
+  {
+    "breed": "cow",
+    "file": "cow-full.glb",
+    "bytes": 371744,
+    "triangles": 19696,
+    "bones": 14
+  },
+  {
+    "breed": "lihua",
+    "file": "lihua-full.glb",
+    "bytes": 375708,
+    "triangles": 19548,
+    "bones": 14
+  },
+  {
+    "breed": "fold",
+    "file": "fold-full.glb",
+    "bytes": 387024,
+    "triangles": 20240,
+    "bones": 14
+  },
+  {
+    "breed": "sphynx",
+    "file": "sphynx-full.glb",
+    "bytes": 348976,
+    "triangles": 18744,
+    "bones": 14
+  },
+  {
+    "breed": "bengal",
+    "file": "bengal-full.glb",
+    "bytes": 373156,
+    "triangles": 19400,
+    "bones": 14
+  },
+  {
+    "breed": "russian",
+    "file": "russian-full.glb",
+    "bytes": 349768,
+    "triangles": 18904,
+    "bones": 14
+  },
+  {
+    "breed": "aby",
+    "file": "aby-full.glb",
+    "bytes": 356180,
+    "triangles": 18720,
+    "bones": 14
+  },
+  {
+    "breed": "american",
+    "file": "american-full.glb",
+    "bytes": 385544,
+    "triangles": 20104,
+    "bones": 14
+  },
+  {
+    "breed": "munchkin",
+    "file": "munchkin-full.glb",
+    "bytes": 372152,
+    "triangles": 19248,
+    "bones": 14
+  },
+  {
+    "breed": "golden",
+    "file": "golden-full.glb",
+    "bytes": 375052,
+    "triangles": 19624,
+    "bones": 14
+  },
+  {
+    "breed": "norwegian",
+    "file": "norwegian-full.glb",
+    "bytes": 389580,
+    "triangles": 20608,
+    "bones": 14
+  },
+  {
+    "breed": "corgi",
+    "file": "corgi-full.glb",
+    "bytes": 348240,
+    "triangles": 18272,
+    "bones": 14
+  },
+  {
+    "breed": "shiba",
+    "file": "shiba-full.glb",
+    "bytes": 344636,
+    "triangles": 18132,
+    "bones": 14
+  },
+  {
+    "breed": "goldenretriever",
+    "file": "goldenretriever-full.glb",
+    "bytes": 350144,
+    "triangles": 18936,
+    "bones": 14
+  },
+  {
+    "breed": "pomeranian",
+    "file": "pomeranian-full.glb",
+    "bytes": 342412,
+    "triangles": 18428,
+    "bones": 14
+  },
+  {
+    "breed": "husky",
+    "file": "husky-full.glb",
+    "bytes": 353708,
+    "triangles": 18816,
+    "bones": 14
+  },
+  {
+    "breed": "lop",
+    "file": "lop-full.glb",
+    "bytes": 374036,
+    "triangles": 20364,
+    "bones": 14
+  },
+  {
+    "breed": "dwarf",
+    "file": "dwarf-full.glb",
+    "bytes": 371668,
+    "triangles": 20012,
+    "bones": 14
+  },
+  {
+    "breed": "lionhead",
+    "file": "lionhead-full.glb",
+    "bytes": 370140,
+    "triangles": 20512,
+    "bones": 14
+  },
+  {
+    "breed": "hedgehog",
+    "file": "hedgehog-full.glb",
+    "bytes": 304008,
+    "triangles": 16132,
+    "bones": 14
+  },
+  {
+    "breed": "hamster",
+    "file": "hamster-full.glb",
+    "bytes": 342684,
+    "triangles": 18108,
+    "bones": 14
+  },
+  {
+    "breed": "chinchilla",
+    "file": "chinchilla-full.glb",
+    "bytes": 338476,
+    "triangles": 17952,
+    "bones": 14
+  },
+  {
+    "breed": "ferret",
+    "file": "ferret-full.glb",
+    "bytes": 286880,
+    "triangles": 15076,
+    "bones": 14
+  },
+  {
+    "breed": "guineapig",
+    "file": "guineapig-full.glb",
+    "bytes": 332292,
+    "triangles": 17400,
+    "bones": 14
+  },
+  {
+    "breed": "glider",
+    "file": "glider-full.glb",
+    "bytes": 337544,
+    "triangles": 17188,
+    "bones": 14
+  }
+]

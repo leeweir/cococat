@@ -1,6 +1,9 @@
 import * as THREE from 'three';
-import {sculptSurface,tintSurface,surfaceProjector} from './organic-surface.js';
+import {tintSurface,surfaceProjector} from './organic-surface.js';
 import {dressCat} from './outfit-model.js';
+import {refineProfile,buildAnatomy,surfaceGuide} from './pet-anatomy.js';
+import {attachEyelids,updateEyelids,coatMaterial} from './pet-eyes.js';
+import {cachedAnatomy} from './pet-assets.js';
 
 // Anatomy is expressed in local units; all breeds share a four-paw rig, not a silhouette.
 export const CAT_PROFILES = {
@@ -42,6 +45,7 @@ export const CAT_PROFILES = {
  guineapig:{species:'guineapig',body:[.38,.26,.56],head:[.4,.34,.36],hip:.29,front:.32,rear:-.34,headY:.56,headZ:.55,ear:.09,earWidth:.12,tail:.03,scale:.92,eye:.11,muzzle:.11,earStyle:'petal',tailStyle:'none',chubby:true,pattern:'calico',teeth:true},
  glider:{species:'glider',body:[.33,.27,.46],head:[.44,.38,.38],hip:.3,front:.28,rear:-.3,headY:.68,headZ:.46,ear:.15,earWidth:.15,tail:.09,scale:.9,eye:.16,muzzle:.09,earStyle:'round',tailStyle:'bushy',pattern:'stripe'}
 };
+for(const [id,profile] of Object.entries(CAT_PROFILES))CAT_PROFILES[id]=refineProfile(profile);
 // coat, marking, deep marking, eyes, muzzle/belly, nose, inner ear
 const COATS={
  calico:['#fff8ee','#eba35f','#4b3b37','#93c57c','#fffaf4','#f19da3','#f6bcbf'],
@@ -136,17 +140,17 @@ export function createCat(breed='calico',outfit={},{lod='full'}={}){
  const p=CAT_PROFILES[breed]||CAT_PROFILES.calico,palette=COATS[breed]||COATS.calico,[coat,patch,dark,eyeColor,light,noseColor,earPink]=palette;
  const low=lod==='low',kind=p.pattern;
  const root=new THREE.Group(),rig=new THREE.Group();root.add(rig);
- const owned=new Set(),sphere=new THREE.SphereGeometry(1,low?20:40,low?16:32);owned.add(sphere);
+ const owned=new Set(),sphere=new THREE.SphereGeometry(1,low?16:24,low?12:18);owned.add(sphere);
  const mats=new Map();const material=c=>{if(!mats.has(c))mats.set(c,new THREE.MeshStandardMaterial({color:c,roughness:.84,metalness:0}));return mats.get(c);};
  // A velvety sheen reads as soft plush instead of noisy hair strands; hairless skin is smoother and less fuzzy.
  const sheen=p.hairless?.15:.45,roughness=p.hairless?.66:.82;
- const plush=c=>{const key=`plush-${c}`;if(!mats.has(key))mats.set(key,new THREE.MeshPhysicalMaterial({color:c,roughness,sheen,sheenRoughness:.55,sheenColor:'#fff3e6'}));return mats.get(key);};
+ const plush=c=>{const key=`plush-${c}`;if(!mats.has(key))mats.set(key,coatMaterial({color:c},p.hairless));return mats.get(key);};
  function shape(parent,g,c,pos=[0,0,0],scale=[1,1,1]){owned.add(g);const m=new THREE.Mesh(g,material(c));m.position.set(...pos);m.scale.set(...scale);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;}
  const ell=(parent,c,pos,s)=>shape(parent,sphere,c,pos,s);
  const soft=(parent,g,c,pos,s)=>{const m=shape(parent,g,c,pos,s);m.material=plush(c);return m;};
  const grp=(parent,pos=[0,0,0])=>{const g=new THREE.Group();g.position.set(...pos);parent.add(g);return g;};
  const line=(parent,c,pts,r=.012)=>shape(parent,new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(v=>new THREE.Vector3(...v))),16,r,6,false),c);
- const softMaterial=new THREE.MeshPhysicalMaterial({vertexColors:true,roughness,sheen,sheenRoughness:.55,sheenColor:'#fff3e6'});mats.set('sculpted-coat',softMaterial);
+ const softMaterial=coatMaterial({vertexColors:true},p.hairless);mats.set('sculpted-coat',softMaterial);
  // Pre-parsed colours: pattern functions run once per vertex.
  const K={coat:new THREE.Color(coat),patch:new THREE.Color(patch),dark:new THREE.Color(dark),light:new THREE.Color(light),blush:new THREE.Color('#f4a3a6')};
  const L=(c,target,amount)=>c.lerp(target,THREE.MathUtils.clamp(amount,0,1));
@@ -172,19 +176,14 @@ export function createCat(breed='calico',outfit={},{lod='full'}={}){
   return L(c,K.light,Math.max(ss(-y,.08,.24),ss(z,p.front*.45,p.front*.95)*ss(-y,-.12,.06))*(p.dimFace?.6:1));
  };
  const body=grp(rig,[0,p.hip+.015,-.04]);
- const cs=p.species?p.body[1]/.33:1,hz=p.haunch||1;
- const torsoForms=[[0,0,-.02,...p.body,.15],[0,.05*cs,p.front*.8,p.body[0]*.82,p.body[1],.3,.17],[0,.2*cs,p.front+.04,p.body[0]*.7,.28*cs,.28*cs,.17],[-p.body[0]*.48,-.03,p.rear*.72,p.body[0]*.6*hz,p.body[1]*.85*hz,.26*hz,.12],[p.body[0]*.48,-.03,p.rear*.72,p.body[0]*.6*hz,p.body[1]*.85*hz,.26*hz,.12]];
- if(p.ruff)torsoForms.push([0,.1*cs,p.front+.1,p.body[0]*.92,.3*cs,.24,.12]);
- const torsoGeometry=sculptSurface(torsoForms,[.8,.85,1.1],softMaterial,[],low?30:52);
- tintSurface(torsoGeometry,bodyPattern);owned.add(torsoGeometry);const torso=new THREE.Mesh(torsoGeometry,softMaterial);torso.castShadow=torso.receiveShadow=true;body.add(torso);
- const legs=[],legColor=kind==='calico'?light:kind==='ferret'?patch:coat,shinColor=['points','ferret'].includes(kind)?(kind==='ferret'?dark:patch):legColor;
- const pawColor=kind==='points'?patch:kind==='ferret'?dark:(['calico','ragdoll','cow'].includes(kind)||p.socks)?light:coat;
+ const cached=cachedAnatomy(breed,lod);
+ const spine=new THREE.Bone();spine.name='spine';rig.add(spine);
+ const legs=[];
+ const bone=(parent,pos,name)=>{const b=new THREE.Bone();b.name=name;b.position.set(...pos);parent.add(b);return b;};
  for(let i=0;i<4;i++){
-  const front=i<2,side=i%2?-1:1,hip=grp(rig,[side*p.body[0]*.62,p.hip,front?p.front:p.rear]);
-  const upper=p.hip*.52,lower=p.hip*.52;
-  if(front)soft(hip,new THREE.CapsuleGeometry(.115,upper*.8,6,18),legColor,[0,-upper*.45,0]);else soft(hip,sphere,legColor,[0,-upper*.3,-.01],[.15*hz,upper*.78,.19*hz]);
-  const knee=grp(hip,[0,-upper,0]);soft(knee,new THREE.CapsuleGeometry(.088,lower*.8,6,16),shinColor,[0,-lower*.5,0]);
-  const ankle=grp(knee,[0,-lower,0]);soft(ankle,sphere,pawColor,[0,.06,.04],[.112,.075,.14]);
+  const front=i<2,side=i%2?-1:1,hip=bone(rig,[side*p.body[0]*.62,p.hip,front?p.front:p.rear],`leg-${i}`);
+  const upper=p.hip*.5,lower=p.hip*.5+.008;
+  const knee=bone(hip,[0,-upper,0],`knee-${i}`),ankle=bone(knee,[0,-lower,0],`paw-${i}`);
   hip.userData={knee,ankle,upper,lower,front,side,rest:hip.position.clone()};legs.push(hip);
  }
  // Tail: a tapered question-mark curve, striped for tabbies and fluffed for long-haired breeds.
@@ -217,7 +216,7 @@ export function createCat(breed='calico',outfit={},{lod='full'}={}){
  tailGeometry.setAttribute('color',new THREE.Float32BufferAttribute(tailColors,3));owned.add(tailGeometry);const tailMesh=new THREE.Mesh(tailGeometry,softMaterial);tailMesh.castShadow=true;tail.add(tailMesh);
  soft(tail,sphere,'#'+tailColor(1).getHexString(),tailCurve.getPointAt(1).toArray(),Array(3).fill(tailStyle==='pom'?p.tail:tailRadius(1)));
  // Head: round skull with chubby cheeks and a small muzzle, painted with soft-edged markings and blush.
- const head=grp(rig,[0,p.headY,p.headZ]);const [hw,hh,hd]=p.head;
+ const head=bone(rig,[0,p.headY,p.headZ],'head');const [hw,hh,hd]=p.head;
  const headPattern=(x,y,z)=>{
   const c=K.coat.clone(),face=ss(z,.05,.22),blaze=w=>1-ss(Math.abs(x),w+(.2-y)*.18,w+.05+(.2-y)*.18);
   if(kind==='calico'){L(c,K.patch,blob(x,y,z,[-.3,.2,.1,.3,.3,.5]));L(c,K.dark,blob(x,y,z,[.34,.3,0,.26,.24,.5]));L(c,K.light,blaze(.05)*face);}
@@ -237,11 +236,18 @@ export function createCat(breed='calico',outfit={},{lod='full'}={}){
   if(kind==='stripe'){L(c,K.dark,(1-ss(Math.abs(x),.015,.04))*ss(y,-.06,.04));for(const s of [-1,1])L(c,K.dark,.85*(1-ss(Math.abs(Math.hypot(x-s*hw*.405,y-.045)-p.eye*1.05),.012,.03)));}
   return L(c,K.blush,(p.dark?.28:.5)*Math.max(0,...[-1,1].map(s=>1-ss(Math.hypot(x-s*hw*.52,y+.11),.02,.1)))*face);
  };
- const ch=(p.chubby?1.12:1)*(p.pouch||1),sn=p.snout||0,headForms=[[0,.015,-.02,hw,hh,hd,.12],[-hw*.48,-.105,.05,hw*.51*ch,.245*ch,.28,.14],[hw*.48,-.105,.05,hw*.51*ch,.245*ch,.28,.14],[-.075,-.175+sn*.25,hd*.78+sn,p.muzzle*.98,.092+sn*.15,(p.flat?.085:.13)+sn*.6,.075],[.075,-.175+sn*.25,hd*.78+sn,p.muzzle*.98,.092+sn*.15,(p.flat?.085:.13)+sn*.6,.075],[0,-.255+sn*.3,hd*.65+sn*.8,.105,.065,.11+sn*.5,.075]];
- if(sn)headForms.push([0,-.11,hd*.62+sn*.45,p.muzzle*1.15,.1,.14+sn*.5,.1]);
- const headGeometry=sculptSurface(headForms,[.86,.83,.8],softMaterial,[],low?36:60);
- tintSurface(headGeometry,headPattern);owned.add(headGeometry);const faceMesh=new THREE.Mesh(headGeometry,softMaterial);faceMesh.castShadow=faceMesh.receiveShadow=true;head.add(faceMesh);
- faceMesh.name='sculpted-face';
+ const sn=p.snout||0;
+ const skinGeometry=cached?.skin.clone()||buildAnatomy(p,softMaterial,bodyPattern,headPattern,lod);owned.add(skinGeometry);
+ const bodyBase=p.hip+.015;
+ const torsoGeometry=cached?.torso.clone()||surfaceGuide(skinGeometry,[0,bodyBase,-.04],(x,y,z)=>y+bodyBase>p.hip*.45&&(y+bodyBase<p.headY-hh*.55||z-.04<p.headZ-hd*.6+.04));
+ tintSurface(torsoGeometry,bodyPattern);owned.add(torsoGeometry);
+ const headGeometry=cached?.face.clone()||surfaceGuide(skinGeometry,[0,p.headY,p.headZ],(x,y,z)=>y>-hh-.12&&z>-hd-.08);
+ tintSurface(headGeometry,headPattern);owned.add(headGeometry);const faceMesh=new THREE.Mesh(headGeometry,softMaterial);head.add(faceMesh);
+ faceMesh.name='sculpted-face';faceMesh.visible=false;
+ const skin=new THREE.SkinnedMesh(skinGeometry,softMaterial);skin.name='pet-skin';skin.castShadow=skin.receiveShadow=true;rig.add(skin);
+ root.updateMatrixWorld(true);
+ const bones=[spine,head,...legs.flatMap(l=>[l,l.userData.knee,l.userData.ankle])],skeleton=new THREE.Skeleton(bones);
+ skin.bind(skeleton);
  // Fit facial details to the *sculpted* cheeks, not an approximate skull ellipsoid.
  const projectFace=surfaceProjector(headGeometry);
  // Plush ears: bevelled rounded triangles with a flat pink inner panel. Folds tip forward over the skull.
@@ -273,32 +279,32 @@ export function createCat(breed='calico',outfit={},{lod='full'}={}){
  // Satin eyes follow the face; restrained specular light leaves the expression readable.
  const eyeMaterial=hex=>{const m=new THREE.MeshPhysicalMaterial({map:eyeTexture(hex),roughness:.52,clearcoat:.12,clearcoatRoughness:.38,specularIntensity:.28,envMapIntensity:.3});mats.set(`eye-${hex}`,m);return m;};
  const eyeMats=[eyeMaterial(eyeColor)];eyeMats.push(p.oddEye?eyeMaterial(p.oddEye):eyeMats[0]);
- const eyes=[],er=p.eye*.94,eyeX=hw*.405,eyeY=p.flat?.055:.045,lidColor=p.dark?'#c9b8a8':'#57443d';
+ const eyes=[],er=p.eye*(p.species==='rabbit'?.79:p.species==='dog'?.8:.84),eyeX=hw*(p.species==='rabbit'?.55:p.species==='dog'?.47:.45),eyeY=p.flat?.055:.065;
  const whiskerColor=luminance(coat)<.44?'#e9e4dc':'#cbbcb2';
  for(const side of [-1,1]){
   const x=side*eyeX,eye=grp(head,[x,eyeY,0]);
   const eyeGeometry=fittedEyeGeometry(projectFace,x,eyeY,er*1.04,er*.97);owned.add(eyeGeometry);
   const dome=new THREE.Mesh(eyeGeometry,eyeMats[side>0?1:0]);dome.name='fitted-eye';eye.add(dome);
-  const lid=grp(head,[x,eyeY,0]);
-  const lidPoints=[[-.78,-.1],[-.4,.20],[0,.29],[.4,.20],[.78,-.1]].map(([u,v])=>[u*er,v*er,projectFace(x+u*er,eyeY+v*er)+.012]);
-  line(lid,lidColor,lidPoints,.009);lid.visible=false;eye.userData.lid=lid;eyes.push(eye);
+  const lidMaterial=softMaterial.clone();lidMaterial.side=THREE.DoubleSide;mats.set(`lids-${side}`,lidMaterial);
+  const closedMaterial=attachEyelids(head,eye,projectFace,er*1.04,er*.97,headPattern,lidMaterial,owned);
+  mats.set(`closed-lid-${side}`,closedMaterial);eyes.push(eye);
   if(p.whiskers!==false&&p.species!=='dog')for(let i=0;i<2;i++)line(head,whiskerColor,[[side*.15,-.19-i*.035,hd*.86],[side*(hw*.82),-.17-i*.06,hd*.6],[side*(hw+.1),-.15-i*.1,hd*.3]],.0035);
  }
  // A soft rounded-triangle nose and an ω mouth.
- const noseY=sn?-.1:-.137,noseZ=projectFace(0,noseY)+.012,bigNose=p.species==='dog'||p.species==='hedgehog';
+ const noseY=p.species==='dog'?-hh*.42:p.species==='rabbit'?-hh*.52:sn?-.085:-hh*.42,noseZ=projectFace(0,noseY)+.012,bigNose=p.species==='dog'||p.species==='hedgehog';
  if(bigNose){const r=p.species==='dog'?1:.7;soft(head,sphere,noseColor,[0,noseY,noseZ+.004],[.064*r,.04*r,.034*r]);soft(head,sphere,noseColor,[0,noseY-.022*r,noseZ-.002],[.04*r,.03*r,.026*r]);}
  else{soft(head,sphere,noseColor,[0,noseY,noseZ],[.047,.028,.021]);soft(head,sphere,noseColor,[0,noseY-.02,noseZ-.002],[.026,.024,.019]);}
  const noseShine=ell(head,'#fff3f0',[-.012,noseY+.007,noseZ+.019],[.011,.004,.002]);
  noseShine.material=new THREE.MeshBasicMaterial({color:'#fff3f0',transparent:true,opacity:.4});mats.set('nose-shine',noseShine.material);
- const mouthColor=p.dark?'#a88c88':'#73534e';
- const mouthLine=pts=>line(head,mouthColor,pts.map(([x,y])=>[x,y,projectFace(x,y)+.008]),.0065);
- for(const s of [-1,1])mouthLine([[0,-.181],[s*.014,-.205],[s*.039,-.213],[s*.065,-.196]]);
- mouthLine([[0,-.16],[0,-.185]]);
- // Rodents and rabbits show two little front teeth; happy dogs show a tongue.
- if(p.teeth)for(const s of [-1,1])soft(head,sphere,'#fffdf8',[s*.011,-.222,projectFace(s*.011,-.222)+.005],[.01,.017,.006]);
- if(p.tongue){const tongue=soft(head,sphere,'#e98c94',[.004,-.228,projectFace(0,-.228)+.004],[.03,.036,.012]);tongue.rotation.x=-.4;}
- // Lion-head rabbits and pomeranians wear a fluffy mane ring around the face.
- if(p.mane)for(let i=0;i<14;i++){const a=i/14*Math.PI*2,r=.1+(i%2)*.025;soft(head,sphere,i%3?coat:light,[Math.cos(a)*hw*.98,Math.sin(a)*hh*.95-.03,-hd*.28],[r*1.2,r*1.2,r]);}
+ const mouthColor=p.dark?'#a88c88':'#73534e',mouthRoot=grp(head,[0,0,0]);
+ const mouthY=noseY-.055;
+ const mouthLine=pts=>line(mouthRoot,mouthColor,pts.map(([x,y])=>[x,y,projectFace(x,y)+.008]),.0055);
+ for(const side of [-1,1])mouthLine([[0,mouthY+.025],[side*.015,mouthY],[side*.042,mouthY-.006],[side*.068,mouthY+.01]]);
+ mouthLine([[0,noseY-.018],[0,mouthY+.025]]);
+ if(p.teeth)for(const side of [-1,1])soft(mouthRoot,sphere,'#fffdf8',[side*.010,mouthY-.014,projectFace(side*.010,mouthY-.014)+.005],[.009,.014,.006]);
+ let tongue=null;
+ if(p.tongue){tongue=soft(mouthRoot,sphere,'#e98c94',[.004,mouthY-.02,projectFace(0,mouthY-.02)+.006],[.022,.028,.012]);tongue.rotation.x=-.4;}
+ const fur=[];
  if(p.spikes)addSpikes();
  function addSpikes(){
   const cone=new THREE.ConeGeometry(.045,.21,6).translate(0,.1,0);owned.add(cone);
@@ -318,7 +324,7 @@ export function createCat(breed='calico',outfit={},{lod='full'}={}){
  }
  const mouth=grp(head,[0,-.25,noseZ+.10]);const top=grp(head,[0,p.head[1]+.16,0]);
  root.scale.setScalar(p.scale);
- root.userData={breed,species:p.species||'cat',hop:!!p.hop,gaitOffsets:p.hop?[0,0,.5,.5]:[0,.5,.75,.25],spikes,rig,head,tail,eyes,legs,body,ears,baseScale:p.scale,profile:p,palette,mouth,top,gait:0,ownedGeometries:owned,ownedMaterials:new Set(mats.values()),
+ root.userData={breed,species:p.species||'cat',hop:!!p.hop,gaitOffsets:p.hop?[0,0,.5,.5]:[0,.5,.75,.25],spikes,fur,skin,skeleton,mouthRoot,tongue,rig,head,tail,eyes,legs,body,ears,baseScale:p.scale,profile:p,palette,mouth,top,gait:0,ownedGeometries:owned,ownedMaterials:new Set(mats.values()),
   anchors:{torsoGeometry,tailCurve,tailRadius,projectFace,eyeX,eyeY,eyeRadius:er,noseY,noseZ}};
  dressCat(root,outfit);
  poseLegs(root,0,0,0);return root;
@@ -331,4 +337,15 @@ export function poseLegs(cat,phase,stride=0,lift=0,lowerBody=0){
  });
 }
 
-export function syncEyelids(cat){for(const eye of cat.userData.eyes){const closed=eye.scale.y<.45;eye.userData.lid.visible=closed;eye.visible=!closed;}}
+export const syncEyelids=updateEyelids;
+
+// A continuous skin has no separate paw/head meshes to pick. Use its blend weights.
+export function skinRegion(hit){
+ const g=hit.object.geometry;if(!hit.object.isSkinnedMesh||!hit.face)return null;
+ const indices=g.attributes.skinIndex,weights=g.attributes.skinWeight;let head=0,legs=0;
+ for(const i of [hit.face.a,hit.face.b,hit.face.c])for(let j=0;j<4;j++){
+  const bone=indices.getComponent(i,j),weight=weights.getComponent(i,j)/3;
+  if(bone===1)head+=weight;else if(bone>=2)legs+=weight;
+ }
+ return head>.38?'head':legs>.45?'paw':'torso';
+}

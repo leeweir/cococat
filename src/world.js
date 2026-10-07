@@ -5,6 +5,8 @@ import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js'
 import {BREEDS,WALL_THEMES,FLOOR_THEMES} from './state.js';
 import {loadQuality,normalizeQuality,qualitySettings} from './performance.js';
 import {createCat,poseLegs,syncEyelids} from './cat-model.js';
+import {blinkAt} from './pet-eyes.js';
+import {updatePetMotion} from './pet-motion.js';
 import {dressCat,animateOutfit} from './outfit-model.js';
 export {createCat} from './cat-model.js';
 const C={pink:0xd9b9a4,pale:0xf0e6d3,purple:0x9aaa89,deep:0x697b65,blue:0x9cbbbf,cream:0xfff5df,ink:0x5d5141};
@@ -75,7 +77,7 @@ function television(p,pos=[.55,1.27,-2.3]){const g=group(p,pos);box(g,0x765c42,[
 export class CatWorld{
  constructor(canvas,onPet,onWardrobe){
  this.canvas=canvas;this.scene=new THREE.Scene();this.scene.background=new THREE.Color(0xf5eee4);this.scene.fog=new THREE.Fog(0xf5eee4,22,40);this.renderer=new THREE.WebGLRenderer({canvas,antialias:true,preserveDrawingBuffer:true});this.renderer.setPixelRatio(Math.min(devicePixelRatio,2));this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.0;this.camera=new THREE.PerspectiveCamera(34,1,.1,70);this.controls=new OrbitControls(this.camera,canvas);this.controls.enableDamping=true;this.controls.enablePan=false;this.controls.minDistance=5.5;this.controls.maxDistance=25;this.controls.minPolarAngle=.58;this.controls.maxPolarAngle=1.46;this.controls.minAzimuthAngle=-.85;this.controls.maxAzimuthAngle=.85;this.controls.enableZoom=false;
- this.scene.add(new THREE.HemisphereLight(0xffffff,0xc3b599,1.55));const sun=new THREE.DirectionalLight(0xfff4e3,2.3);sun.position.set(-3,9,7);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-8,right:8,top:8,bottom:-8,near:.1,far:30});sun.shadow.normalBias=.025;sun.shadow.bias=-.0003;this.scene.add(sun);this.sun=sun;this.setQuality(loadQuality());this.controls.addEventListener('change',()=>this.requestRender());const fill=new THREE.DirectionalLight(0xd7e6e2,.8);fill.position.set(5,4,-3);this.scene.add(fill);const pmrem=new THREE.PMREMGenerator(this.renderer),roomLight=new RoomEnvironment();this.scene.environment=pmrem.fromScene(roomLight,.04).texture;roomLight.dispose();pmrem.dispose();this.scene.environmentIntensity=.45;
+ this.scene.add(new THREE.HemisphereLight(0xffffff,0xc3b599,1.10));const sun=new THREE.DirectionalLight(0xfff4e3,2.1);sun.position.set(-3,9,7);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);Object.assign(sun.shadow.camera,{left:-8,right:8,top:8,bottom:-8,near:.1,far:30});sun.shadow.normalBias=.025;sun.shadow.bias=-.0003;this.scene.add(sun);this.sun=sun;this.setQuality(loadQuality());this.controls.addEventListener('change',()=>this.requestRender());const fill=new THREE.DirectionalLight(0xd7e6e2,.6);fill.position.set(5,4,-3);this.scene.add(fill);const pmrem=new THREE.PMREMGenerator(this.renderer),roomLight=new RoomEnvironment();this.scene.environment=pmrem.fromScene(roomLight,.04).texture;roomLight.dispose();pmrem.dispose();this.scene.environmentIntensity=.45;
  this.environments={};this.buildAdopt();this.buildHome();this.particles=[];this.cat=null;this.currentScene='adopt';this.action=null;this.elapsed=0;this.reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;this.lastTime=performance.now();this.cameraSet=false;this.resize=new ResizeObserver(()=>this.updateSize());this.resize.observe(canvas.parentElement);let down;canvas.addEventListener('pointerdown',e=>down={x:e.clientX,y:e.clientY});canvas.addEventListener('pointerup',e=>{if(this.mode==='portrait'||this.inputMode||this.uiBlocked)return;if(!down||Math.hypot(e.clientX-down.x,e.clientY-down.y)>7)return;const rect=canvas.getBoundingClientRect();const pointer=new THREE.Vector2((e.clientX-rect.left)/rect.width*2-1,-(e.clientY-rect.top)/rect.height*2+1);const ray=new THREE.Raycaster();ray.setFromCamera(pointer,this.camera);const hits=ray.intersectObjects([this.cat,...Object.values(this.environments).filter(g=>g.visible)].filter(Boolean),true);if(hits.length){let o=hits[0].object;while(o){if(o.userData.action==='wardrobe'){onWardrobe();return;}if(o===this.cat){onPet();return;}o=o.parent;}}});this.setScene('adopt');this.animate();
  }
  environment(id){const g=group(this.scene);g.visible=false;this.environments[id]=g;return g;}
@@ -117,12 +119,12 @@ export class CatWorld{
  const w=WALL_THEMES.find(t=>t.id===wall)||WALL_THEMES[0],f=FLOOR_THEMES.find(t=>t.id===floor)||FLOOR_THEMES[0];
  r.wall.material.color.set(w.color);r.side.material.color.set(w.color).lerp(new THREE.Color(0xffffff),.34);
  r.tones[0].color.set(f.colors[0]);r.tones[1].color.set(f.colors[1]);this.roomTheme={wall:w.id,floor:f.id};}
- placeCat(){if(!this.cat)return;this.cat.scale.setScalar(this.cat.userData.baseScale*(['adopt','wardrobe'].includes(this.currentScene)?1:this.currentScene==='bath'?.86:.68));const y=this.currentScene==='bath'?.28:this.currentScene==='wardrobe'?.32:.06;const z=['home','tv'].includes(this.currentScene)?1.65:this.currentScene==='wardrobe'?.25:0;this.cat.position.set(0,y,z);this.baseY=y;this.baseZ=z;}
+ placeCat(){if(!this.cat)return;this.cat.scale.setScalar(this.cat.userData.baseScale*(['adopt','wardrobe'].includes(this.currentScene)?1:this.currentScene==='bath'?.86:.78));const y=this.currentScene==='bath'?.28:this.currentScene==='wardrobe'?.32:.06;const z=['home','tv'].includes(this.currentScene)?1.65:this.currentScene==='wardrobe'?.25:0;this.cat.position.set(0,y,z);this.baseY=y;this.baseZ=z;}
  ensureEnvironment(name){const id=name==='tv'?'home':name;if(!this.environments[id]){const build=this[`build${id[0].toUpperCase()}${id.slice(1)}`];if(!build)throw new Error(`Unknown scene: ${id}`);build.call(this);}}
  requestRender(){this.needsRender=true;}
  draw(){this.renderer.render(this.scene,this.camera);this.renderFrames=(this.renderFrames||0)+1;this.needsRender=false;}
  setQuality(value){this.quality=normalizeQuality(value);const settings=qualitySettings(this.quality,globalThis.devicePixelRatio||1);this.renderer.setPixelRatio(settings.pixelRatio);if(this.sun.shadow.mapSize.x!==settings.shadowSize){this.sun.shadow.map?.dispose();this.sun.shadow.map=null;this.sun.shadow.mapSize.set(settings.shadowSize,settings.shadowSize);}this.requestRender();}
- setScene(name){this.ensureEnvironment(name);this.requestRender();this.currentScene=name;for(const [id,g]of Object.entries(this.environments))g.visible=id===(name==='tv'?'home':name);this.placeCat();this.resetCamera();if(this.bowl)this.bowl.visible=false;}
+ setScene(name){this.petFocus=false;this.ensureEnvironment(name);this.requestRender();this.currentScene=name;for(const [id,g]of Object.entries(this.environments))g.visible=id===(name==='tv'?'home':name);this.placeCat();this.resetCamera();if(this.bowl)this.bowl.visible=false;}
  resetCamera(){
  this.requestRender();const w=this.canvas.clientWidth,h=this.canvas.clientHeight;if(!w||!h)return;
  const narrow=w<760,adopt=this.currentScene==='adopt',closet=this.currentScene==='wardrobe';
@@ -139,7 +141,7 @@ export class CatWorld{
   this.camera.setViewOffset(w,h,panel/2,h/2-(top+bottom)/2,w,h);this.camera.updateProjectionMatrix();this.controls.update();this.cameraSet=true;return;
  }
  // Fit the world in the playable area, allowing a closer crop on a portrait screen.
- const worldWidth=adopt?(narrow?4.5:4.8):closet?(narrow?6.7:8.5):(narrow?7.0:10.2);
+ const worldWidth=adopt?(narrow?4.5:4.8):closet?(narrow?6.7:8.5):(narrow?6.8:9.2);
  const distance=Math.max(adopt?7:8.8,worldWidth/(2*Math.tan(19*Math.PI/180)*(playWidth/h)));
  const targetY=adopt?.9:.45;this.controls.target.set(0,targetY,0);
  this.camera.position.set(distance*.12,targetY+distance*(adopt?.32:.57),distance);
@@ -150,29 +152,19 @@ export class CatWorld{
  rotate(dir){const offset=this.camera.position.clone().sub(this.controls.target);const theta=Math.atan2(offset.x,offset.z)+dir*.28;const r=Math.hypot(offset.x,offset.z);this.camera.position.x=r*Math.sin(theta);this.camera.position.z=r*Math.cos(theta);this.controls.update();}
  startAction(id){this.action=id;this.actionStarted=this.elapsed;this.bowl.visible=id==='feed';this.food.visible=true;}
  finishAction(){this.action=null;if(this.food)this.food.visible=false;}
- pet(){this.petUntil=this.elapsed+1.6;}
- // Progressive: one breed per frame so the main loop (and the rest of the UI) keeps running.
- thumbnails(onShot){
- const renderScene=new THREE.Scene();renderScene.add(new THREE.HemisphereLight(0xffffff,0xc2bba6,1.7));const light=new THREE.DirectionalLight(0xffffff,2);light.position.set(-3,6,5);renderScene.add(light);renderScene.environment=this.scene.environment;renderScene.environmentIntensity=.45;
- const cam=new THREE.PerspectiveCamera(32,1,.1,20);const queue=BREEDS.map(b=>b.id);
- const shoot=()=>{
-  if(document.hidden||this.uiBlocked){requestAnimationFrame(shoot);return;}
-  const id=queue.shift();
-  if(id===undefined){renderScene.clear();return;}
-  const old=this.renderer.getSize(new THREE.Vector2());
-  try{
-   this.renderer.setSize(160,160,false);this.renderer.setClearColor(0xfff5fa,0);
-   const cat=createCat(id,{},{lod:'low'});cat.rotation.y=.13;renderScene.add(cat);
-   const bounds=new THREE.Box3().setFromObject(cat),center=bounds.getCenter(new THREE.Vector3()),height=bounds.max.y-bounds.min.y;
-   cam.position.set(2.3,center.y+1.05,Math.max(4.8,height*2.0));cam.lookAt(center);
-   this.renderer.render(renderScene,cam);this.thumbnailShots=(this.thumbnailShots||0)+1;const url=this.canvas.toDataURL('image/png');
-   renderScene.remove(cat);disposeCat(cat);onShot?.(id,url);
-  }finally{this.renderer.setClearColor(0xf5eee4,1);this.renderer.setSize(old.x,old.y,false);this.requestRender();}
-  requestAnimationFrame(shoot);
- };
- requestAnimationFrame(shoot);
+ setPetFocus(value){this.petFocus=!!value;if(!value)this.resetCamera();this.requestRender();}
+ updatePetCamera(dt){
+  if(!this.petFocus||this.currentScene!=='home'||!this.cat)return;
+  const target=this.cat.position.clone();target.y+=this.cat.userData.profile.headY*this.cat.scale.x*.65;
+  const old=this.controls.target.clone(),alpha=1-Math.exp(-dt*4);this.controls.target.lerp(target,alpha);
+  this.camera.position.add(this.controls.target.clone().sub(old));
+  const offset=this.camera.position.clone().sub(this.controls.target),distance=this.canvas.clientWidth<760?7.8:6.2;
+  offset.setLength(THREE.MathUtils.lerp(offset.length(),distance,alpha));this.camera.position.copy(this.controls.target).add(offset);this.controls.update();
  }
- animate(){requestAnimationFrame(()=>this.animate());const now=performance.now(),dt=Math.min((now-this.lastTime)/1000,.05);this.lastTime=now;if(document.hidden||this.uiBlocked){if(!document.hidden&&this.needsRender)this.draw();return;}this.elapsed+=dt;const t=this.elapsed;this.controls.update();if(this.cat){const {rig,head,tail,eyes,legs}=this.cat.userData;const at=t-(this.actionStarted||0);rig.position.y=this.reduced?0:Math.sin(t*2)*.025;rig.rotation.set(0,0,0);head.rotation.set(0,Math.sin(t*.65)*.055,Math.sin(t*.5)*.025);tail.rotation.z=Math.sin(t*2)*.13;this.cat.position.set(0,this.baseY,this.baseZ);this.cat.rotation.y=.07;const blink=Math.sin(t*1.5)> .994?.1:1;eyes.forEach(e=>e.scale.y=blink);poseLegs(this.cat,0,0,0);
+ pet(){this.petUntil=this.elapsed+1.6;if(this.currentScene==='home')this.setPetFocus(true);}
+ // Pre-rendered portraits avoid constructing 34 skinned animals during adoption.
+ thumbnails(onShot){for(const {id} of BREEDS){const url=`${import.meta.env.BASE_URL}pets/portraits/${id}.png?v=anatomy-v2`;const image=new Image();image.onload=()=>{this.portraitLoads=(this.portraitLoads||0)+1;onShot?.(id,url);};image.src=url;}}
+ animate(){requestAnimationFrame(()=>this.animate());const now=performance.now(),dt=Math.min((now-this.lastTime)/1000,.05);this.lastTime=now;if(document.hidden||this.uiBlocked){if(!document.hidden&&this.needsRender)this.draw();return;}this.elapsed+=dt;const t=this.elapsed;this.controls.update();if(this.cat){const {rig,head,tail,eyes,legs}=this.cat.userData;const at=t-(this.actionStarted||0);rig.position.y=this.reduced?0:Math.sin(t*2)*.025;rig.rotation.set(0,0,0);head.rotation.set(0,Math.sin(t*.65)*.055,Math.sin(t*.5)*.025);tail.rotation.z=Math.sin(t*2)*.13;this.cat.position.set(0,this.baseY,this.baseZ);this.cat.rotation.y=.07;const blink=blinkAt(t);eyes.forEach(e=>e.scale.y=blink);poseLegs(this.cat,0,0,0);
  if(this.action==='feed'){head.rotation.x=.23+Math.sin(at*7)*.13;rig.rotation.x=.12;this.cat.position.z=.82;tail.rotation.z=Math.sin(at*5)*.18;}
  if(this.action==='bath'){rig.rotation.z=Math.sin(at*12)*.06;head.rotation.z=Math.sin(at*7)*.12;eyes.forEach(e=>e.scale.y=.7);legs.forEach((l,i)=>l.rotation.x=Math.sin(at*8+i*Math.PI)*.3);}
  if(this.action==='tv'){this.cat.rotation.y=2.72;head.rotation.z=Math.sin(at*3)*.15;head.rotation.y=Math.sin(at*2)*.28;rig.position.y=Math.abs(Math.sin(at*3))*.12;}
@@ -183,10 +175,10 @@ export class CatWorld{
  if(this.tv){this.tv.fish.position.x=Math.sin(t*1.7)*.53;this.tv.fish.position.y=Math.sin(t*2.1)*.11;this.tv.fish.rotation.y=Math.cos(t*1.7)<0?Math.PI:0;}
  if(this.butterfly){this.butterfly.position.set(Math.sin(t*1.6)*1.5,1.8+Math.sin(t*2)*.25,.3+Math.cos(t*1.6)*.7);this.butterfly.children.forEach((m,i)=>{if(i<2)m.rotation.y=Math.sin(t*18)*(i?1:-1);});}
  if(this.foam&&this.environments.bath.visible){this.foam.children.forEach((m,i)=>m.position.y=.67+Math.sin(t*2+i)*.07);this.drops.visible=this.action==='bath';this.drops.children.forEach((m,i)=>m.position.y=.7+((i*.17-t*1.5)%2.1+2.1)%2.1);}
- this.updateLiving?.(dt,t);if(this.cat){syncEyelids(this.cat);animateOutfit(this.cat,t);}
+ this.updateLiving?.(dt,t);if(this.cat){updatePetMotion(this.cat,t,{mode:this.mode,behavior:this.behavior,moving:this.walkBlend||0,petting:this.petUntil>t,portraitAction:this.portraitAction?.action,reduced:this.reduced});syncEyelids(this.cat);animateOutfit(this.cat,t);this.updatePetCamera(dt);}
  this.draw();
  }
- inspect(){return {pendingRender:!!this.needsRender,displayedTreasures:this.treasureDisplay?.children.filter(o=>o.userData.treasure).map(o=>o.userData.treasure)||[],thumbnailShots:this.thumbnailShots||0,quality:this.quality,renderFrames:this.renderFrames,elapsed:this.elapsed,environments:Object.keys(this.environments),scene:this.currentScene,breed:this.cat?.userData.breed,outfit:this.cat?.userData.outfit?{...this.cat.userData.outfit}:{},roomTheme:this.roomTheme,pos:typeof this.pos?.z==='number'?[this.pos.x,this.pos.y,this.pos.z]:null,behavior:this.behavior,mode:this.mode,drive:this.drive?[this.drive.x,this.drive.y]:null,furniture:this.furnitureMeshes?[...this.furnitureMeshes.keys()]:[],catMeshes:this.cat?(()=>{let n=0;this.cat.traverse(o=>{if(o.isMesh)n++;});return n;})():0,renderer:this.renderer.info.render,canvas:{width:this.canvas.width,height:this.canvas.height},camera:this.camera.position.toArray()};}
+ inspect(){return {pendingRender:!!this.needsRender,displayedTreasures:this.treasureDisplay?.children.filter(o=>o.userData.treasure).map(o=>o.userData.treasure)||[],thumbnailShots:this.thumbnailShots||0,portraitLoads:this.portraitLoads||0,quality:this.quality,petFocus:!!this.petFocus,renderFrames:this.renderFrames,elapsed:this.elapsed,environments:Object.keys(this.environments),scene:this.currentScene,breed:this.cat?.userData.breed,outfit:this.cat?.userData.outfit?{...this.cat.userData.outfit}:{},roomTheme:this.roomTheme,pos:typeof this.pos?.z==='number'?[this.pos.x,this.pos.y,this.pos.z]:null,behavior:this.behavior,mode:this.mode,drive:this.drive?[this.drive.x,this.drive.y]:null,furniture:this.furnitureMeshes?[...this.furnitureMeshes.keys()]:[],catMeshes:this.cat?(()=>{let n=0;this.cat.traverse(o=>{if(o.isMesh)n++;});return n;})():0,renderer:this.renderer.info.render,canvas:{width:this.canvas.width,height:this.canvas.height},camera:this.camera.position.toArray()};}
 }
 
 // Disposal is terminal; weak references deduplicate overlapping/repeated cleanup without retaining resources.
@@ -209,6 +201,7 @@ function disposeCat(cat){
    for(const material of dress.materials.values())ownedMaterials.add(material);
    dresses.push([o,dress]);
   }
+  if(o.isSkinnedMesh&&!disposedResources.has(o.skeleton)){disposedResources.add(o.skeleton);o.skeleton.dispose();}
   if(o.isMesh){geometries.add(o.geometry);for(const material of Array.isArray(o.material)?o.material:[o.material])if(material)ownedMaterials.add(material);}
  });
  // Clothes span multiple rig branches: detach only after traversing every nested owner.

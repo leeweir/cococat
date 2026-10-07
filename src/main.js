@@ -1,3 +1,4 @@
+import {preparePetAsset} from './pet-assets.js';
 import "./style.css";
 import { icon } from "./icons.js";
 import {
@@ -336,10 +337,14 @@ function scene(name, sceneName, title, kicker, desc = "") {
   $("#home").hidden = false;
   $("#scene-hotspot").hidden = true;
   $("#world-labels").hidden = name !== "explore";
+  $("#focus-pet").hidden = name !== "home";
+  $("#focus-pet").setAttribute("aria-pressed","false");
+  $("#focus-pet").textContent="看近一点";
   heading(kicker, title, desc);
   updateStats();
   setPad();
 }
+await preparePetAsset(state.breed);
 try {
   world = new LivingWorld($("#world"), pet, openWardrobe, worldEvent);
 } catch (err) {
@@ -387,10 +392,15 @@ function renderBreedList() {
   list.scrollTop = 0;
   list.scrollLeft = 0;
 }
-function selectBreed(id) {
+async function selectBreed(id) {
   if (state.adopted) return;
   selected = id;
+  const submit=$("#adopt-form button[type=submit]");
+  if(submit)submit.disabled=true;
+  await preparePetAsset(id);
+  if(selected!==id||state.adopted||mode!=="adopt")return;
   world.setCat(id, {});
+  if(submit&&submit.isConnected)submit.disabled=false;
   const b = BREEDS.find((x) => x.id === id);
   say(b.quote);
   $(".shelf-caption strong").textContent = b.description;
@@ -413,6 +423,7 @@ function showAdopt() {
   $("#scene-hotspot").hidden = true;
   $("#world-labels").hidden = true;
   $("#move-pad").hidden = true;
+  $("#focus-pet").hidden = true;
   heading(
     "初次见面，请多关照",
     "想把哪只小可爱\n带回家？",
@@ -1357,6 +1368,7 @@ function pet() {
   }
   if (!["home", "wardrobe"].includes(mode)) return;
   world.pet();
+  if(mode==="home"){ $("#focus-pet").setAttribute("aria-pressed","true"); $("#focus-pet").textContent="看看小屋"; }
   if (Date.now() - lastPet > 3000) {
     lastPet = Date.now();
     commit(reward(state, { bond: 1, stat: "mood", amount: 2 }));
@@ -1654,6 +1666,11 @@ $("#home").onclick = () => {
     toast("先回家休息，未完成的这次照顾不会发奖励。");
   showHome();
 };
+$("#focus-pet").onclick=()=>{
+  world.setPetFocus(!world.petFocus);
+  $("#focus-pet").setAttribute("aria-pressed",String(world.petFocus));
+  $("#focus-pet").textContent=world.petFocus?"看看小屋":"看近一点";
+};
 $("#rotate-left").onclick = () => world.rotate(-1);
 $("#rotate-right").onclick = () => world.rotate(1);
 $("#sound").onclick = () => {
@@ -1742,7 +1759,9 @@ $("#settings-open").onclick = openSettings;
 $("#settings-close").onclick = $("#settings-done").onclick = () =>
   $("#settings").close();
 $("#camera-reset").onclick = () => {
-  world.resetCamera();
+  world.setPetFocus(false);
+  $("#focus-pet").setAttribute("aria-pressed","false");
+  $("#focus-pet").textContent="看近一点";
   $("#settings").close();
   toast("已恢复默认视角");
 };

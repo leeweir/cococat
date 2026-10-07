@@ -69,14 +69,37 @@ function context(cat){
   backY:(x,z)=>a.top(x,z,p.body[1]*.8),chestZ:(x,y)=>a.front(x,y,p.front+.2),
   // Vertex-coloured shell over part of the torso, slightly inflated.
   shell(k,include,colorAt,offset=.024,extra={}){
-   const pos=a.torsoGeometry.attributes.position,nor=a.torsoGeometry.attributes.normal,verts=[],norms=[],cols=[],v=V(0,0,0);
-   for(let i=0;i<pos.count;i+=3){
-    const cx=(pos.getX(i)+pos.getX(i+1)+pos.getX(i+2))/3,cy=(pos.getY(i)+pos.getY(i+1)+pos.getY(i+2))/3,cz=(pos.getZ(i)+pos.getZ(i+1)+pos.getZ(i+2))/3;
-    if(!include(cx,cy,cz))continue;
-    for(let j=i;j<i+3;j++){v.fromBufferAttribute(pos,j);const c=colorAt(v);verts.push(v.x+nor.getX(j)*offset,v.y+nor.getY(j)*offset,v.z+nor.getZ(j)*offset);norms.push(nor.getX(j),nor.getY(j),nor.getZ(j));cols.push(c.r,c.g,c.b);}
+   const source=d.skin.geometry,pos=source.attributes.position,nor=source.attributes.normal,ix=source.index,skinIndex=source.attributes.skinIndex,skinWeight=source.attributes.skinWeight;
+   const verts=[],norms=[],cols=[],bones=[],weights=[],base=d.body.position;
+   const neckTop=p.headY-p.head[1]*.72;
+   const inside=v=>v.y<=neckTop&&v.y>=p.hip*.38&&include(v.x-base.x,v.y-base.y,v.z-base.z);
+   const vertex=j=>{
+    const w=new Map();for(let n=0;n<4;n++){const bone=skinIndex.getComponent(j,n);w.set(bone,(w.get(bone)||0)+skinWeight.getComponent(j,n));}
+    return {p:V(pos.getX(j),pos.getY(j),pos.getZ(j)),n:V(nor.getX(j),nor.getY(j),nor.getZ(j)),w};
+   };
+   const interpolate=(a,b,t)=>{
+    const w=new Map();for(const [i,value] of a.w)w.set(i,value*(1-t));for(const [i,value] of b.w)w.set(i,(w.get(i)||0)+value*t);
+    return {p:a.p.clone().lerp(b.p,t),n:a.n.clone().lerp(b.n,t).normalize(),w};
+   };
+   const emit=v=>{
+    const c=colorAt(v.p.clone().sub(base)),pp=v.p.clone().addScaledVector(v.n,offset);
+    verts.push(pp.x,pp.y,pp.z);norms.push(v.n.x,v.n.y,v.n.z);cols.push(c.r,c.g,c.b);
+    const ws=[...v.w].sort((a,b)=>b[1]-a[1]).slice(0,4),sum=ws.reduce((n,e)=>n+e[1],0);
+    for(let i=0;i<4;i++){bones.push(ws[i]?.[0]||0);weights.push((ws[i]?.[1]||0)/sum);}
+   };
+   for(let i=0;i<ix.count;i+=3){
+    const original=[vertex(ix.getX(i)),vertex(ix.getX(i+1)),vertex(ix.getX(i+2))],polygon=[];
+    // Clip boundary triangles instead of dropping whole faces, so hems stay smooth.
+    for(let j=0;j<3;j++){
+     const a=original[j],b=original[(j+1)%3],aIn=inside(a.p),bIn=inside(b.p);
+     if(aIn)polygon.push(a);
+     if(aIn!==bIn){let lo=0,hi=1;for(let n=0;n<18;n++){const t=(lo+hi)/2;if(inside(a.p.clone().lerp(b.p,t))===aIn)lo=t;else hi=t;}polygon.push(interpolate(a,b,(lo+hi)/2));}
+    }
+    for(let j=1;j<polygon.length-1;j++)for(const v of [polygon[0],polygon[j],polygon[j+1]])emit(v);
    }
-   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(norms,3));g.setAttribute('color',new THREE.Float32BufferAttribute(cols,3));
-   return k.add(d.body,g,k.mat('vertex',extra.look||'fabric',{side:THREE.DoubleSide,...(extra.material||{})}));
+   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(verts,3));g.setAttribute('normal',new THREE.Float32BufferAttribute(norms,3));g.setAttribute('color',new THREE.Float32BufferAttribute(cols,3));g.setAttribute('skinIndex',new THREE.Uint16BufferAttribute(bones,4));g.setAttribute('skinWeight',new THREE.Float32BufferAttribute(weights,4));
+   const garment=new THREE.SkinnedMesh(g,k.mat('vertex',extra.look||'fabric',{side:THREE.DoubleSide,...(extra.material||{})}));
+   garment.castShadow=garment.receiveShadow=true;d.rig.add(garment);garment.bind(d.skeleton,d.skin.bindMatrix);k.geometries.add(g);k.meshes.push(garment);return garment;
   },
   // Flat outline (head-space x/y) fitted onto the sculpted face, `lift` above the skin.
   decal(k,shape,color,lift=.012,look='shiny',extra={}){
@@ -182,7 +205,7 @@ function torsoSampler(d){
 // Body-space attachment keeps a head turn from lifting the collar off the chest.
 const NECK_STEPS=48,NECK_TILT=.42;
 function neckline(d){
- const sample=d.anchors.sampleTorso??=torsoSampler(d),center=V(0,.2,d.profile.front+.02),sin=Math.sin(NECK_TILT),cos=Math.cos(NECK_TILT),points=[];
+ const sample=d.anchors.sampleTorso??=torsoSampler(d),center=V(0,Math.max(-.04,Math.min(.17,d.profile.headY-d.body.position.y-d.profile.head[1]*.72)),d.profile.front+.02),sin=Math.sin(NECK_TILT),cos=Math.cos(NECK_TILT),points=[];
  for(let i=0;i<NECK_STEPS;i++){
   const angle=i/NECK_STEPS*Math.PI*2,direction=V(Math.cos(angle),-Math.sin(angle)*sin,Math.sin(angle)*cos);
   points.push({point:sample(center,direction,V(0,0,0)),direction});
@@ -191,16 +214,18 @@ function neckline(d){
 }
 const neckCurve=(x,thick)=>new THREE.CatmullRomCurve3(x.neck.map(({point,direction})=>point.clone().addScaledVector(direction,thick+.045)),true);
 function collar(k,x,color,thick=.032){const curve=neckCurve(x,thick);return k.add(x.d.body,new THREE.TubeGeometry(curve,96,thick,10,true),color);}
-const front=(x,dy=0)=>{const {point,direction}=x.neck[NECK_STEPS/4],y=point.y+direction.y*.077+dy;return [0,y,x.chestZ(0,y)+.07];};
+const front=(x,dy=0)=>{const {point,direction}=x.neck[NECK_STEPS/4];x.a.torsoGeometry.computeBoundingBox();const y=Math.max(x.a.torsoGeometry.boundingBox.min.y+.10,point.y+direction.y*.077+dy);return [0,y,x.chestZ(0,y)+.07];};
 // Subdivide hanging fabric so the middle follows the chest too, not just its corners.
 function chestFabric(k,x,shape,color,anchor,depth=.012){
  const solid=new THREE.ExtrudeGeometry(shape,{depth,bevelEnabled:false,curveSegments:20}),g=densify(solid,2);solid.dispose();
  const p=g.attributes.position;
- for(let i=0;i<p.count;i++){const cx=p.getX(i)+anchor[0],cy=p.getY(i)+anchor[1];p.setXYZ(i,cx,cy,x.chestZ(cx,cy)+.045+p.getZ(i));}
+ g.computeBoundingBox();x.a.torsoGeometry.computeBoundingBox();
+ const drop=-g.boundingBox.min.y,available=anchor[1]-x.a.torsoGeometry.boundingBox.min.y-.025,fit=drop>0?Math.min(1,Math.max(.05,available/drop)):1;
+ for(let i=0;i<p.count;i++){const cx=p.getX(i)+anchor[0],cy=p.getY(i)*fit+anchor[1];p.setXYZ(i,cx,cy,x.chestZ(cx,cy)+.045+p.getZ(i));}
  g.computeVertexNormals();return k.add(x.d.body,g,color);
 }
 function backpackFit(x){
- const p=x.p,width=Math.min(.34,p.body[0]*.85),height=width*.6,length=p.body[2]*.55,backZ=p.rear*.12;
+ const p=x.p,width=Math.min(.30,p.body[0]*.75),height=width*.6,length=p.body[2]*.38,backZ=p.rear*.12;
  const tilt=Math.atan2(x.backY(0,backZ+length/2)-x.backY(0,backZ-length/2),length),sin=Math.sin(tilt),cos=Math.cos(tilt);
  let floor=-Infinity;
  for(const xx of [-width/2,0,width/2])for(let i=0;i<=4;i++){const zz=length*(i/4-.5);floor=Math.max(floor,x.backY(xx,backZ+zz*cos)-zz*sin);}
@@ -227,7 +252,9 @@ const NECK={
  scarf(k,x,it){const c=it.c,ring=collar(k,x,c[0],.06),uv=ring.geometry.attributes.uv;
   const colors=new Float32Array(uv.count*3),palette=c.map(toon);for(let i=0;i<uv.count;i++)palette[Math.floor(uv.getX(i)*12)%c.length].toArray(colors,i*3);ring.geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));ring.material=k.mat('vertex');
   const anchor=ring.geometry.parameters.path.getPoint(.2),tail=k.group(x.d.body,[anchor.x,anchor.y,0]);
-  for(let i=0;i<4;i++){const y=-.04-i*.06;k.rbox(tail,c[i%c.length],[0,y,x.chestZ(anchor.x,anchor.y+y)+.065],[.1,.065,.035],.015);}
+  x.a.torsoGeometry.computeBoundingBox();
+  const step=Math.max(.025,Math.min(.24,anchor.y-x.a.torsoGeometry.boundingBox.min.y-.025))/4;
+  for(let i=0;i<4;i++){const y=-step*(i+.5);k.rbox(tail,c[i%c.length],[0,y,x.chestZ(anchor.x,anchor.y+y)+.065],[.1,step*1.08,.035],Math.min(.015,step*.4));}
   k.animate(t=>tail.rotation.z=Math.sin(t*2.3)*.045);},
  pearls(k,x,it){const curve=neckCurve(x,.022);for(let i=0;i<18;i++)k.ball(x.d.body,it.c[0],curve.getPointAt(i/18).toArray(),.022,'shiny');},
  tie(k,x,it){const c=it.c;collar(k,x,'#ffffff',.018);const anchor=front(x,-.01);k.ball(x.d.body,c[0],anchor,[.035,.03,.025]);const s=new THREE.Shape();s.moveTo(-.025,-.02);s.lineTo(.025,-.02);s.lineTo(.04,-.17);s.lineTo(0,-.21);s.lineTo(-.04,-.17);s.closePath();chestFabric(k,x,s,c[0],anchor,.014);const y=anchor[1]-.11;k.ball(x.d.body,c[1],[0,y,x.chestZ(0,y)+.066],.009);},
@@ -248,7 +275,7 @@ const TOP={
  shirt(k,x,it){
   const c=it.c,p=x.p,z0=p.rear*.35,fabric=PATTERNS[it.pattern]?.(c)||solid(c[0]),look=it.metal?'metal':'fabric';
   x.shell(k,(cx,cy,cz)=>cz>z0&&!(cz>p.front+.02&&cy<-.1),fabric,.026,{look});
-  for(const leg of x.d.legs.filter(l=>l.userData.front)){sleeve(k,x,leg,'hip',c[0],{look});if(it.pattern==='knit'||it.id==='pajama'||it.id==='spacesuit'||it.metal)sleeve(k,x,leg,'knee',c[0],{scale:1.2,look});}
+  for(const leg of x.d.legs.filter(l=>l.userData.front)){if(!x.d.skin)sleeve(k,x,leg,'hip',c[0],{look});if(it.pattern==='knit'||it.id==='pajama'||it.id==='spacesuit'||it.metal)sleeve(k,x,leg,'knee',c[0],{scale:1.2,look});}
   const chestTop=p.front+.02,neckY=p.body[1]*.55;
   if(it.turtle)x.shell(k,(cx,cy,cz)=>cz>p.front-.04&&cy>.12,v=>toon(c[1]).lerp(toon(c[0]),ss(Math.sin(v.x*80),.2,.8)*.5),.04);
   if(it.sailor){x.shell(k,(cx,cy,cz)=>cy>.12&&cz>p.front*.1&&cz<p.front+.05,v=>toon(Math.abs(v.z-p.front*.1)<.035||Math.abs(v.x)>p.body[0]*.62?c[0]:c[1]),.04);const knot=k.group(x.d.body,[0,.08,x.chestZ(0,.08)+.03]);for(const s of [-1,1])k.ball(knot,'#d4524f',[s*.05,0,0],[.055,.035,.02],'shiny');k.tube(knot,'#d4524f',[[0,0,0],[-.03,-.08,.01]],.012);k.tube(knot,'#d4524f',[[0,0,0],[.03,-.08,.01]],.012);}

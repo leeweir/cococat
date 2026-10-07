@@ -2754,3 +2754,7 @@ dialog .dialog-feedback {
     transform: none;
   }
 }
+
+.view-controls .focus-pet { width:auto; padding:0 12px; border-radius:16px; font-size:12px; white-space:nowrap; }
+.view-controls .focus-pet[aria-pressed="true"] { background:#dce6d8; color:#365641; }
+@media (max-width:759px) { #app[data-mode="home"] .view-controls span { display:none; } }
