@@ -9,6 +9,7 @@
     "preview": "vite preview --host 127.0.0.1 --port 4175 --strictPort",
     "test": "node --test tests/*.test.js",
     "test:e2e": "playwright test",
+    "test:e2e:smoke": "playwright test --grep @smoke",
     "test:browser:install": "playwright install chromium",
     "check": "npm test && npm run build"
   },

@@ -65,6 +65,7 @@ npm run dev
 | `npm test`                     | 运行 Node 单元与模型回归测试                                  |
 | `npm run test:browser:install` | 安装 Playwright Chromium（首次运行浏览器测试前）              |
 | `npm run test:e2e`             | 运行桌面与手机尺寸的隔离浏览器回归                            |
+| `npm run test:e2e:smoke`       | 只运行桌面与手机的核心流程冒烟测试（共 2 项）                  |
 | `npm run build`                | 构建生产版本到 `dist/`                                        |
 | `npm run check`                | 依次运行测试和生产构建                                        |
 | `npm run preview`              | 预览已构建的 `dist/`，地址为 <http://127.0.0.1:4175/cococat/> |
@@ -90,7 +91,9 @@ npm run dev
 
 源码和 GitHub Pages 使用同一个公开仓库 `leeweir/cococat`，无需独立发布仓库，也无需提交 `dist/`。
 
-推送到 `main` 后，[Publish cococat](https://github.com/leeweir/cococat/actions/workflows/pages.yml) 工作流会自动安装依赖、运行 `npm run check`，安装 Chromium 并运行 `npm run test:e2e`，全部通过后再将构建产物部署到 GitHub Pages；浏览器测试失败时会保留诊断产物 7 天。也可在 Actions 页面手动运行该工作流。
+推送到 `main` 后，[Publish cococat](https://github.com/leeweir/cococat/actions/workflows/pages.yml) 工作流会自动安装依赖、运行 `npm run check`，安装 Chromium 并运行 `npm run test:e2e:smoke`。日常发布只执行桌面与手机尺寸各 1 项核心流程测试，覆盖领养、喂食、换装、刷新后的存档保留及页面横向溢出；全部通过后再将构建产物部署到 GitHub Pages。浏览器测试失败时会保留诊断产物 7 天。
+
+完整 24 项浏览器回归仍可在本地通过 `npm run test:e2e` 运行；也可在 Actions 页面手动运行工作流，勾选 **Run the full browser regression suite**（`full_e2e`）后，在发布前执行完整回归。手动发布默认仍使用 2 项冒烟测试。
 
 仓库 **Settings → Pages → Build and deployment → Source** 应选择 **GitHub Actions**。
 

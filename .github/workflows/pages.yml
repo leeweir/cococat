@@ -3,6 +3,12 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      full_e2e:
+        description: Run the full browser regression suite
+        type: boolean
+        required: false
+        default: false
 permissions:
   contents: read
   pages: write
@@ -22,7 +28,12 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      - name: Core browser smoke tests
+        if: ${{ github.event_name != 'workflow_dispatch' || !inputs.full_e2e }}
+        run: npm run test:e2e:smoke
+      - name: Full browser regression (manual)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.full_e2e }}
+        run: npm run test:e2e
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

@@ -39,7 +39,7 @@ const importFile = (page, content) =>
     buffer: Buffer.from(content),
   });
 
-test("adoption, successful meal, outfit and reload retain progress without overflow", async ({
+test("adoption, successful meal, outfit and reload retain progress without overflow", { tag: "@smoke" }, async ({
   page,
 }) => {
   await page.goto("/");
