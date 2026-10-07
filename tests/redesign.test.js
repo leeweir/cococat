@@ -8,8 +8,8 @@ import {restartGame,restoreGame,BACKUP_KEY} from '../src/save-manager.js';
 import {freshState,SAVE_KEY,FURNITURE,FURNITURE_BY_ID} from '../src/state.js';
 const finiteGeometry=(root,label)=>root.traverse(o=>{if(o.geometry)for(const [key,a] of Object.entries(o.geometry.attributes))assert.ok(a.array.every(Number.isFinite),`${label} invalid ${key} geometry`);});
 
-test('twenty silhouettes each have four articulated paws and finite grounded gait',()=>{
- assert.equal(new Set(Object.values(CAT_PROFILES).map(p=>JSON.stringify([p.body,p.head,p.hip,p.ear]))).size,20);
+test('thirty-four silhouettes each have four articulated paws and finite grounded gait',()=>{
+ assert.equal(new Set(Object.values(CAT_PROFILES).map(p=>JSON.stringify([p.body,p.head,p.hip,p.ear]))).size,34);
  for(const breed of Object.keys(CAT_PROFILES)){
   const cat=createCat(breed);assert.equal(cat.userData.legs.length,4);finiteGeometry(cat,breed);
   // Eyes must sit just above the actual cheek surface, including at their edges.
@@ -230,4 +230,19 @@ test('old crowded furniture layouts are separated from each other and the cat sp
  const items=fitFurniture(['box','bed','tower','toy','rug','cushion','table'].map((id,i)=>({uid:`${id}-${i}`,id,x:0,z:.55,rotation:0})));
  assert.equal(items.length,7);
  for(const item of items){assert.ok(FURNITURE_BY_ID.has(item.id));assert.ok(validPlacement(item,items,{x:0,z:1.65}),item.id);}
+});
+
+test('each species reads as itself: ears, tails, snouts, spikes and hopping',async()=>{
+ const {BREEDS}=await import('../src/state.js');
+ for(const b of BREEDS)assert.ok(CAT_PROFILES[b.id],`no model for ${b.id}`);
+ const size=(o)=>new THREE.Box3().setFromObject(o).getSize(new THREE.Vector3());
+ const cat=createCat('calico'),lop=createCat('lop'),dwarf=createCat('dwarf'),dog=createCat('shiba'),hog=createCat('hedgehog');
+ assert.ok(size(dwarf.userData.ears[0]).y>size(cat.userData.ears[0]).y*1.4,'rabbit ears should be long');
+ assert.ok(lop.userData.ears[0].children[0].position.y<0,'lop ears hang down');
+ const tip=c=>c.userData.anchors.noseZ;assert.ok(tip(dog)>tip(cat)+.05,'dogs need a snout');
+ assert.equal(dwarf.userData.hop,true);assert.deepEqual(dwarf.userData.gaitOffsets,[0,0,.5,.5]);assert.equal(cat.userData.hop,false);
+ assert.equal(hog.userData.spikes.length,2);assert.ok(hog.userData.spikes.every(m=>m.count>20));
+ dressCat(hog,{top:'hoodie'});assert.ok(!hog.getObjectByName('back-spikes').visible,'spikes hide under a top');
+ undressCat(hog);assert.ok(hog.getObjectByName('back-spikes').visible);
+ for(const id of ['goldenretriever','glider','ferret'])finiteGeometry(createCat(id,{head:'crown-gold',top:'stripe-tee',feet:'sneakers',tail:'tailbow'}),id);
 });

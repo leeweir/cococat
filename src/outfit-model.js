@@ -347,12 +347,14 @@ const TAIL={
 };
 const BUILDERS={head:HEAD,face:FACE,neck:NECK,top:TOP,bottom:BOTTOM,back:BACK,feet:FEET,tail:TAIL};
 
-export function undressCat(cat){const dress=cat.userData.dress;if(!dress)return;for(const m of dress.meshes)m.removeFromParent();for(const g of dress.geometries)g.dispose();for(const m of dress.materials.values()){m.map?.dispose();m.dispose();}for(const ear of cat.userData.ears||[])ear.visible=true;cat.userData.dress=null;}
+export function undressCat(cat){const dress=cat.userData.dress;if(!dress)return;for(const m of dress.meshes)m.removeFromParent();for(const g of dress.geometries)g.dispose();for(const m of dress.materials.values()){m.map?.dispose();m.dispose();}for(const ear of cat.userData.ears||[])ear.visible=true;for(const m of cat.userData.spikes||[])m.visible=true;cat.userData.dress=null;}
 // Rebuilds only the outfit pieces; the sculpted cat is untouched, so switching clothes is quick.
 export function dressCat(cat,value){
  undressCat(cat);const outfit=normalizeOutfit(value),k=makeKit(),x=context(cat);let hideEars=false;
  for(const slot of SLOTS){const piece=WARDROBE_BY_ID.get(outfit[slot.id]);if(!piece)continue;const build=BUILDERS[slot.id][piece.kind];if(!build)continue;const result=build(k,x,piece);if(result?.hideEars||piece.kind==='helmet')hideEars=true;}
  for(const ear of cat.userData.ears||[])ear.visible=!hideEars;
+ // Hedgehog spikes would poke through garments worn over the back.
+ for(const m of cat.userData.spikes||[])m.visible=m.name==='head-spikes'?!outfit.head:!(outfit.top||outfit.back);
  cat.userData.outfit=outfit;cat.userData.dress=k;return cat;
 }
 export function animateOutfit(cat,t){for(const fn of cat?.userData.dress?.animators||[])fn(t);}

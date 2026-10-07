@@ -1,8 +1,9 @@
-import {ROOM_OBSTACLES,furnitureRadius,validPlacement} from './furniture-layout.js';
+import {ROOM_OBSTACLES,furnitureRadius,validPlacement,navPadding,bodyClearance} from './furniture-layout.js';
 import {route,blocked,clearSegment} from './navigation.js';
 import {poseLegs,syncEyelids} from './cat-model.js';
 import {CatWorld,THREE,C,group,ball,box,cyl,tube,torus,star,flower,plant,sign,mesh,makeCat,disposeCat} from './world.js';
-import {PERSONALITIES,FURNITURE_BY_ID} from './state.js';
+import {PERSONALITIES,FURNITURE_BY_ID,normalizeTreasureDisplay} from './state.js';
+import {createTreasureDisplay} from './treasure-display.js';
 const limit=(v,a,b)=>Math.max(a,Math.min(b,v));
 const ownMat=o=>{const m=new THREE.MeshStandardMaterial(o);m.userData.own=true;return m;};
 const ownGlass=o=>{const m=new THREE.MeshPhysicalMaterial(o);m.userData.own=true;return m;};
@@ -14,14 +15,14 @@ const HOME_BOUNDS={x:3.5,minZ:-2.3,maxZ:2.35},FIELD_BOUNDS={x:3.25,minZ:-1.9,max
 const PORTRAIT_DURATIONS={head:1.8,chin:1.8,nose:1.7,paw:1.8,blink:2};
 export class LivingWorld extends CatWorld {
  constructor(canvas,onPet,onWardrobe,onEvent){
-  super(canvas,onPet,onWardrobe);this.onEvent=onEvent;this.pos=new THREE.Vector3(0,.06,.55);this.destination=null;this.face=.35;this.gait=0;this.walkBlend=0;this.mode='free';this.inputMode=null;this.nextIdle=7;this.behavior='watch';this.poseUntil=0;this.idleCount=0;this.stats={breed:'calico',bond:0};this.props=group(this.scene);this.furnitureRoot=group(this.environments.home);this.furnitureMeshes=new Map();this.dragging=false;this.drive=new THREE.Vector2();this.driveSpots=new Set();this.driveStep=0;this.pointer=new THREE.Vector2();this.ray=new THREE.Raycaster();this.floorPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);this.buildToys();this.buildGarden();this.buildStreet();this.buildBathTools();this.buildStoryProps();this.buildTVShows();this.ready=true;this.installInput();
+  super(canvas,onPet,onWardrobe);this.onEvent=onEvent;this.pos=new THREE.Vector3(0,.06,.55);this.destination=null;this.face=.35;this.gait=0;this.walkBlend=0;this.mode='free';this.inputMode=null;this.nextIdle=7;this.behavior='watch';this.poseUntil=0;this.idleCount=0;this.stats={breed:'calico',bond:0};this.props=group(this.scene);this.furnitureRoot=group(this.environments.home);this.furnitureMeshes=new Map();this.dragging=false;this.drive=new THREE.Vector2();this.driveSpots=new Set();this.driveStep=0;this.pointer=new THREE.Vector2();this.ray=new THREE.Raycaster();this.floorPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);this.buildToys();this.buildBathTools();this.buildStoryProps();this.buildTVShows();this.ready=true;this.installInput();
   this.portraitAction=null;this.portraitPoint=new THREE.Vector3();this.portraitHits=[];
  }
  emit(type,data={}){this.onEvent?.(type,data);}
- setScene(name){this.clearPortrait();this.clearPointerInput();super.setScene(name);if(!this.ready)return;this.pos.set(0,this.baseY,this.baseZ);this.destination=null;this.waypoints=[];this.jump=null;this.behavior='watch';this.poseUntil=0;this.cat.visible=true;this.nextIdle=this.elapsed+7;this.face=.35;this.drive.set(0,0);this.driveSpots.clear();}
- setMode(mode){const portraitChanged=(this.mode==='portrait')!==(mode==='portrait');this.clearPortrait();this.clearPointerInput();this.mode=mode;this.drive.set(0,0);this.driveSpots.clear();this.inputMode=['wand','fetch','hide','scrub','rinse','decorate','explore'].includes(mode)?mode:null;this.controls.enabled=!this.inputMode&&!this.uiBlocked;this.canvas.style.cursor=this.inputMode?'crosshair':'grab';this.destination=null;this.waypoints=[];this.jump=null;this.afterArrive=null;this.poseUntil=0;this.cat.visible=true;this.behavior='watch';this.nextIdle=this.elapsed+7;this.toys.visible=['wand','fetch','hide'].includes(mode);this.furnitureRoot.visible=mode!=='hide';this.feather.visible=mode==='wand';this.fetchBall.visible=mode==='fetch';this.hideBoxes.visible=mode==='hide';this.sponge.visible=mode==='scrub';this.handShower.visible=mode==='rinse';this.ballPhase='ready';this.lastCatch=-10;this.lastWand=new THREE.Vector3(99,0,99);this.wandTarget=null;this.strokePrevious=null;this.bathRatio=0;this.foam.children.forEach(m=>m.visible=mode==='rinse');this.drops.visible=mode==='rinse';this.selectedFurniture=null;this.furnitureRoot.traverse(o=>{if(o.isMesh&&o.material.emissive)o.material.emissive.setHex(0);});if(mode==='hide')this.newHideRound();if(mode==='explore')this.pos.set(0,.06,1.9);if(mode==='portrait'){this.pos.set(0,this.baseY,this.baseZ);this.walkBlend=0;this.petUntil=0;}if(portraitChanged&&this.currentScene==='adopt')this.resetCamera();this.emit('input-mode',{mode});}
+ setScene(name){this.clearPortrait();this.clearPointerInput();super.setScene(name);if(!this.ready)return;this.pos.set(0,this.baseY,this.baseZ);this.destination=null;this.waypoints=[];this.jump=null;this.behavior='watch';this.poseUntil=0;this.cat.visible=true;this.nextIdle=this.elapsed+7;this.face=.35;this.drive.set(0,0);this.driveSpots.clear();this.clearSpawn();}
+ setMode(mode){const portraitChanged=(this.mode==='portrait')!==(mode==='portrait');this.clearPortrait();this.clearPointerInput();this.mode=mode;this.drive.set(0,0);this.driveSpots.clear();this.inputMode=['wand','fetch','hide','scrub','rinse','decorate','explore'].includes(mode)?mode:null;this.controls.enabled=!this.inputMode&&!this.uiBlocked;this.canvas.style.cursor=this.inputMode?'crosshair':'grab';this.destination=null;this.waypoints=[];this.jump=null;this.afterArrive=null;this.poseUntil=0;this.cat.visible=true;this.behavior='watch';this.nextIdle=this.elapsed+7;this.toys.visible=['wand','fetch','hide'].includes(mode);this.furnitureRoot.visible=mode!=='hide';this.feather.visible=mode==='wand';this.fetchBall.visible=mode==='fetch';this.hideBoxes.visible=mode==='hide';this.sponge.visible=mode==='scrub';this.handShower.visible=mode==='rinse';this.ballPhase='ready';this.lastCatch=-10;this.lastWand=new THREE.Vector3(99,0,99);this.wandTarget=null;this.strokePrevious=null;this.bathRatio=0;this.foam?.children.forEach(m=>m.visible=mode==='rinse');if(this.drops)this.drops.visible=mode==='rinse';this.selectedFurniture=null;this.furnitureRoot.traverse(o=>{if(o.isMesh&&o.material.emissive)o.material.emissive.setHex(0);});if(mode==='hide')this.newHideRound();if(mode==='explore')this.pos.set(0,.06,1.9);if(mode==='portrait'){this.pos.set(0,this.baseY,this.baseZ);this.walkBlend=0;this.petUntil=0;}if(portraitChanged&&this.currentScene==='adopt')this.resetCamera();this.emit('input-mode',{mode});}
  setPaused(value){super.setPaused(value);if(value)this.clearPointerInput();}
- clearPointerInput(){this.dragging=false;this.pointerStart=null;this.strokePrevious=null;}
+ clearPointerInput(){if(this.dragging&&this.mode==='decorate')this.emit('placement-end');this.dragging=false;this.pointerStart=null;this.strokePrevious=null;}
  clearPortrait(){
   if(this.mode!=='portrait'&&!this.portraitAction)return;
   this.portraitAction=null;if(!this.cat)return;
@@ -63,7 +64,8 @@ export class LivingWorld extends CatWorld {
    if(u>=1){this.portraitAction=null;this.emit('portrait-complete',{action:active.action});}
   }else for(const eye of eyes)eye.scale.y=openness;
  }
- syncState(state){this.stats={breed:state.breed,bond:state.bond,fullness:state.fullness};this.setFurniture(state.furniture||[]);if(state.roomTheme)this.setRoomTheme(state.roomTheme);}
+ syncState(state){this.setTreasureDisplay(normalizeTreasureDisplay(state.displayedTreasures,state.collection));this.stats={breed:state.breed,bond:state.bond,fullness:state.fullness};this.setFurniture(state.furniture||[]);if(state.roomTheme)this.setRoomTheme(state.roomTheme);if(this.ready&&this.cat)this.clearSpawn();}
+ setTreasureDisplay(ids){const key=ids.join('|');if(key===this.treasureDisplayKey)return;this.treasureDisplayKey=key;if(this.treasureDisplay){this.treasureDisplay.removeFromParent();disposeCat(this.treasureDisplay);}this.treasureDisplay=ids.length?createTreasureDisplay(this.environments.home,ids):null;this.requestRender();}
  buildToys(){this.toys=group(this.scene);this.toys.visible=false;this.feather=group(this.toys);tube(this.feather,0x997451,[[0,0,0],[.35,.65,-.12]],.025);tube(this.feather,0xc9af86,[[.35,.65,-.12],[.13,.9,-.1],[-.12,.8,.0]],.012);for(let i=0;i<3;i++){const f=ball(this.feather,[0xa9d8ee,0xd0a982,0x9fb18d][i],[-.14+i*.055,.78,0],[.07,.19,.03]);f.rotation.z=(i-1)*.3;}this.fetchBall=ball(this.toys,0x93c2e4,[0,.2,1.9],[.13,.13,.13]);this.ballStripe=torus(this.fetchBall,0xffe4a1,[0,0,0],1.01,.06,[.5,0,.5]);this.hideBoxes=group(this.toys);for(let i=0;i<3;i++){const b=group(this.hideBoxes,[(i-1)*1.9,.03,1]);this.makeBox(b,1);b.userData.boxIndex=i;b.traverse(o=>o.userData.boxIndex=i);} }
  makeBox(g,size=1){const w=1.18*size,d=1.36*size,h=.72*size;
  box(g,0xb18c63,[0,.055,0],[w,.075,d],.015);
@@ -114,21 +116,21 @@ export class LivingWorld extends CatWorld {
  selectFurniture(uid){this.selectedFurniture=uid;}
  placeSelected(x,z,rotation){const g=this.furnitureMeshes.get(this.selectedFurniture);if(!g)return;const id=g.userData.furnitureType,r=furnitureRadius(id);
  const nx=limit(x,-3.5+r,3.5-r),nz=limit(z,-2.55+r,2.3-r);
- if(!validPlacement({uid:this.selectedFurniture,id,x:nx,z:nz},this.furnitureItems(),this.pos)){this.emit('placement-blocked');return;}
+ if(!validPlacement({uid:this.selectedFurniture,id,x:nx,z:nz},this.furnitureItems(),this.pos,this.stats.breed)){this.emit('placement-blocked');return;}
  g.position.x=nx;g.position.z=nz;if(rotation!==undefined)g.rotation.y=rotation;this.emit('place',{uid:this.selectedFurniture,id,x:g.position.x,z:g.position.z,rotation:g.rotation.y});}
  // A valid open spot for a brand-new piece: nearest the front-middle of the room, clear of the cat.
  freeSpot(id){const items=this.furnitureItems();let best=null,bestScore=Infinity;
  for(let z=-2.1;z<=2.3;z+=.2)for(let x=-3.3;x<=3.3;x+=.2){
-  if(!validPlacement({uid:`new-${id}`,id,x,z},items,this.pos))continue;
+  if(!validPlacement({uid:`new-${id}`,id,x,z},items,this.pos,this.stats.breed))continue;
   const front=z<.6?(.6-z)*1.4:z>2?(z-2)*1.4:0;
   const score=Math.abs(x)*.5+front+Math.max(0,1.8-Math.hypot(x-this.pos.x,z-this.pos.z))*1.6;
   if(score<bestScore){bestScore=score;best={x:Math.round(x*100)/100,z:Math.round(z*100)/100};}
  }
  return best;}
- setupExploration(outing){this.outing=outing;if(this.trail){this.scene.remove(this.trail);disposeCat(this.trail);}this.trail=group(this.scene);for(const spot of outing.spots){const g=group(this.trail,[spot.x,.05,spot.z]);cyl(g,0xa9b88f,[0,.04,0],.26,.3,.08);star(g,0xf6d986,[0,.36,0],.14);g.userData.spot=spot.id;g.traverse(o=>o.userData.spot=spot.id);}
+ setupExploration(outing){this.clearExploration();this.outing=outing;this.trail=group(this.scene);for(const spot of outing.spots){const g=group(this.trail,[spot.x,.05,spot.z]);cyl(g,0xa9b88f,[0,.04,0],.26,.3,.08);star(g,0xf6d986,[0,.36,0],.14);g.userData.spot=spot.id;g.traverse(o=>o.userData.spot=spot.id);}
  const b={park:'orange',garden:'blue',street:'ragdoll'}[outing.region];this.friend=makeCat(b,'bow');this.friend.scale.setScalar(.57);this.friend.position.set(2.5,.07,-.8);this.friend.rotation.y=-.5;this.friend.userData.spot='friend';this.friend.traverse(o=>o.userData.spot='friend');this.trail.add(this.friend);this.eventProp=group(this.trail,[-2.35,.1,-.85]);for(let i=0;i<5;i++){const l=ball(this.eventProp,0xd7b084,[(i%3)*.14,0,(i%2)*.2],[.18,.09,.13]);l.rotation.z=i*.5;}this.eventProp.traverse(o=>o.userData.spot='event');}
  hideSpot(id){const g=this.trail?.children.find(x=>x.userData.spot===id);if(g)g.visible=false;}
- clearExploration(){if(this.trail){this.scene.remove(this.trail);disposeCat(this.trail);this.trail=null;}this.outing=null;}
+ clearExploration(){if(this.trail){this.scene.remove(this.trail);disposeCat(this.trail);}this.trail=null;this.friend=null;this.eventProp=null;this.outing=null;}
  obstacles(){
  const room=['home','tv'].includes(this.currentScene);const items=[];
  if(room){items.push(...ROOM_OBSTACLES);
@@ -142,7 +144,13 @@ export class LivingWorld extends CatWorld {
  }
  return items;
  }
- navPadding(){return this.stats.breed==='maine'?.95:.73;}
+ navPadding(){return navPadding(this.stats.breed);}
+ // Saves made with an older layout, or a breed swap to a bigger cat, can leave the cat inside a piece's body clearance.
+ // Walking refuses to move an overlapping cat, so step it out to the nearest free floor first.
+ clearSpawn(){if(!['home','tv'].includes(this.currentScene)||this.pos.y>.15)return;const obstacles=this.obstacles(),pad=bodyClearance(this.stats.breed);if(!blocked(this.pos.x,this.pos.z,obstacles,pad))return;
+  let best=null;for(let ring=1;ring<=40&&!best;ring++)for(let i=0;i<ring*8;i++){const a=i/(ring*8)*Math.PI*2,x=this.pos.x+Math.cos(a)*ring*.1,z=this.pos.z+Math.sin(a)*ring*.1;
+   if(Math.abs(x)>HOME_BOUNDS.x||z<HOME_BOUNDS.minZ||z>HOME_BOUNDS.maxZ||blocked(x,z,obstacles,pad))continue;const d=Math.hypot(x-this.pos.x,z-this.pos.z)-(z>this.pos.z?.001:0);if(!best||d<best.d)best={x,z,d};}
+  if(best){this.pos.x=best.x;this.pos.z=best.z;this.destination=null;this.waypoints=[];}}
  walkRoute(x,z,after,y=.06){
  const points=route(this.pos,{x,z},this.obstacles(),undefined,this.navPadding());
  this.waypoints=points.map(p=>new THREE.Vector3(p.x,.06,p.z));this.destination=this.waypoints.shift()||null;this.behavior='walk';
@@ -192,7 +200,6 @@ export class LivingWorld extends CatWorld {
  if(!blocked(clampX(this.pos.x+dx*step),clampZ(this.pos.z+dz*step),obstacles,pad)){nx=clampX(this.pos.x+dx*step);nz=clampZ(this.pos.z+dz*step);}
  else if(!blocked(clampX(this.pos.x+dx*step),this.pos.z,obstacles,pad))nx=clampX(this.pos.x+dx*step);
  else if(!blocked(this.pos.x,clampZ(this.pos.z+dz*step),obstacles,pad))nz=clampZ(this.pos.z+dz*step);
- else {nx=clampX(this.pos.x+dx*step);nz=clampZ(this.pos.z+dz*step);}
  this.driveStep=Math.hypot(nx-this.pos.x,nz-this.pos.z);
  this.pos.x=nx;this.pos.z=nz;if(this.pos.y>.15)this.pos.y+=(.06-this.pos.y)*Math.min(1,dt*6);
  const target=Math.atan2(dx,dz),turn=Math.atan2(Math.sin(target-this.face),Math.cos(target-this.face));
@@ -282,7 +289,8 @@ export class LivingWorld extends CatWorld {
   else {this.pos.x+=delta.x/dist*travelled;this.pos.z+=delta.z/dist*travelled;this.pos.y+=delta.y*Math.min(1,dt*4);}
  }
  this.walkBlend=THREE.MathUtils.damp(this.walkBlend||0,(wasMoving||travelled>0)?1:0,12,dt);this.gait=(this.gait||0)+travelled/(.40*this.cat.scale.x/.64);
- rig.position.y=Math.sin(this.gait*Math.PI*4)*.012*this.walkBlend;
+ // Rabbits hop: a paired-leg gait with a little lift each stride; everyone else just bobs.
+ rig.position.y=(this.cat.userData.hop?Math.abs(Math.sin(this.gait*Math.PI*2))*.07:Math.sin(this.gait*Math.PI*4)*.012)*this.walkBlend;
  rig.rotation.z=Math.sin(this.gait*Math.PI*2)*.014*this.walkBlend;
  poseLegs(this.cat,this.gait,.40*this.walkBlend,.12*this.walkBlend);
  if(this.mode==='wand'&&this.wandTarget){const d=Math.hypot(this.pos.x-this.wandTarget.x,this.pos.z-this.wandTarget.z);if(d<.34&&t-this.lastCatch>1.1&&this.lastWand.distanceTo(this.wandTarget)>.6){this.lastCatch=t;this.lastWand.copy(this.wandTarget);this.pose('pounce',.65);this.emit('wand-catch');}this.feather.rotation.z=Math.sin(t*7)*.15;}

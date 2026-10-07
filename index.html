@@ -3,26 +3,29 @@
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f5eee4"><title>喵呜小屋 · 今天也被可爱击中</title></head>
 <body>
 <div id="app">
-<header class="topbar"><a class="brand" href="./" aria-label="喵呜小屋首页"><span class="brand-paw">✿</span><span>喵呜小屋<small>和小猫一起，把日子过软一点</small></span></a><div class="header-right"><span id="wallet" class="wallet" hidden></span><span id="save-status">一只小猫，一整个小宇宙</span><button id="sound" class="round-button" aria-label="开启音效" title="开启音效">♪<span class="sound-off">╱</span></button><button id="settings-open" class="round-button" aria-label="游戏设置" title="游戏设置">⚙</button></div></header>
+<header class="topbar"><a class="brand" href="./" aria-label="喵呜小屋首页"><span class="brand-paw">✿</span><span>喵呜小屋<small>和小可爱一起，把日子过软一点</small></span></a><div class="header-right"><span id="wallet" class="wallet" hidden></span><span id="save-status">一只小可爱，一整个小宇宙</span><button id="sound" class="round-button" aria-label="开启音效" title="开启音效">♪<span class="sound-off">╱</span></button><button id="settings-open" class="round-button" aria-label="游戏设置" title="游戏设置">⚙</button></div></header>
 <main id="stage">
- <canvas id="world" aria-label="可拖动旋转的三维猫咪场景"></canvas>
- <div class="scene-heading"><span id="scene-kicker">初次见面，请多关照</span><h1 id="scene-title">想把哪只小可爱<br>带回家？</h1><p id="scene-description">二十种性格，一样擅长霸占你的心。</p></div>
+ <canvas id="world" aria-label="可拖动旋转的三维宠物场景"></canvas>
+ <div class="scene-heading"><span id="scene-kicker">初次见面，请多关照</span><h1 id="scene-title">想把哪只小可爱<br>带回家？</h1><p id="scene-description">三十四种小可爱，一样擅长霸占你的心。</p></div>
  <div id="stats" class="stats" hidden></div>
  <div id="bubble" class="speech" role="status" aria-live="polite">我的特长？把你的沙发变成我的。</div>
  <button id="home" class="home-button" hidden>⌂ 回家</button>
  <button id="scene-hotspot" class="hotspot" hidden>打开衣柜 <span>✧</span></button>
- <div class="view-controls"><button id="rotate-left" aria-label="向左旋转视角">↶</button><span>拖动看看 · 点猫咪摸摸</span><button id="rotate-right" aria-label="向右旋转视角">↷</button></div>
+ <div class="view-controls"><button id="rotate-left" aria-label="向左旋转视角">↶</button><span>拖动看看 · 点小可爱摸摸</span><button id="rotate-right" aria-label="向右旋转视角">↷</button></div>
  <div id="move-pad" role="group" aria-label="走路摇杆"><button data-drive="f" aria-label="向前走">↑</button><button data-drive="l" aria-label="向左走">←</button><button data-drive="b" aria-label="向后走">↓</button><button data-drive="r" aria-label="向右走">→</button></div>
  <div id="world-labels" hidden></div><div id="bath-splash" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
  <div id="fx-layer" aria-hidden="true"></div>
- <div id="loading"><span>✿</span>小猫正在整理胡须…</div>
+ <div id="loading"><span>✿</span>小可爱正在整理胡须…</div>
 </main>
 <section id="shelf" aria-label="游戏操作"></section>
 <footer class="footer"><span>一间小屋，慢慢变成家。</span><span id="footer-note">给每一种可爱，一个家 ♡</span></footer>
 </div>
+<aside id="save-warning" class="save-warning" role="alert" hidden><span id="save-warning-text"></span><button id="save-help" class="soft-button">存档设置</button></aside>
 <div id="toast" role="status" aria-live="polite"></div>
-<dialog id="album"><form method="dialog"><button class="close" aria-label="关闭纪念册">×</button></form><span class="dialog-icon">♡</span><h2>我们的喵喵纪念册</h2><p id="album-summary"></p><div id="memory-list"></div><button id="album-done" class="primary">继续陪小猫</button></dialog>
-<dialog id="settings"><button class="close" id="settings-close" aria-label="关闭游戏设置">×</button><span class="dialog-icon">⚙</span><h2>小屋设置</h2><p>进度保存在这台设备的当前浏览器里。</p><div class="settings-actions"><button class="soft-button" id="camera-reset">恢复默认视角</button><button class="soft-button danger" id="restart-open">完全重新开始</button><button class="soft-button" id="restore-save" hidden>恢复上一次进度</button><button class="primary" id="settings-done">继续陪小猫</button></div></dialog>
-<dialog id="restart-confirm"><span class="dialog-icon">↺</span><h2>重新认识一只小猫？</h2><p>当前小猫、爱心、亲密度、家具、衣服、收藏和纪念册都会重置，回到最初的领养页。</p><p>会保留一份重开前的进度，可在设置中恢复。</p><div class="dialog-actions"><button class="soft-button" id="restart-cancel">继续当前进度</button><button class="primary" id="restart-confirm-button">确认重新开始</button></div></dialog>
+<dialog id="wishes"><form method="dialog"><button class="close" aria-label="关闭每日心愿">×</button></form><h2>今天的三个小心愿</h2><p>想做就做，没做也没关系。每天重新出发，不记连续天数。</p><div id="wish-list"></div><button class="primary" id="wish-claim">领取 3 颗爱心</button></dialog>
+<dialog id="album"><form method="dialog"><button class="close" aria-label="关闭纪念册">×</button></form><span class="dialog-icon">♡</span><h2>我们的喵喵纪念册</h2><p id="album-summary"></p><div id="memory-list"></div><button id="album-done" class="primary">继续陪小可爱</button></dialog>
+<dialog id="settings"><button class="close" id="settings-close" aria-label="关闭游戏设置">×</button><span class="dialog-icon">⚙</span><h2>小屋设置</h2><p>进度保存在这台设备的当前浏览器里。</p><label class="quality-setting">画面质量 <select id="quality"><option value="standard">标准 · 精细阴影</option><option value="low">省电 · 降低分辨率与阴影</option></select></label><div class="settings-actions"><button class="soft-button" id="camera-reset">恢复默认视角</button><button class="soft-button danger" id="restart-open">完全重新开始</button><button class="soft-button" id="restore-save" hidden>恢复上一次进度</button><button class="soft-button" id="export-save">导出存档</button><button class="soft-button" id="import-save">导入存档</button><input type="file" id="save-file" accept=".json,application/json" hidden><button class="primary" id="settings-done">继续陪小可爱</button></div></dialog>
+<dialog id="restart-confirm"><span class="dialog-icon">↺</span><h2>重新认识一只小可爱？</h2><p>当前小可爱、爱心、亲密度、家具、衣服、收藏和纪念册都会重置，回到最初的领养页。</p><p>会保留一份重开前的进度，可在设置中恢复。</p><div class="dialog-actions"><button class="soft-button" id="restart-cancel">继续当前进度</button><button class="primary" id="restart-confirm-button">确认重新开始</button></div></dialog>
+<dialog id="import-confirm"><h2>恢复这份存档？</h2><p id="import-summary"></p><p>只有确认后才会替换当前进度。请勿导入不可信来源的文件。</p><div class="dialog-actions"><button class="soft-button" id="import-cancel">取消</button><button class="primary" id="import-confirm-button">确认恢复</button></div></dialog>
 <script type="module" src="/src/main.js"></script>
 </body></html>

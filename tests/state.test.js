@@ -4,11 +4,11 @@ import {freshState,applyAction,normalizeSave,BREEDS,FAVORITES,PERSONALITIES,INGR
 const text=v=>typeof v==='string'&&v.trim().length>0;
 const clone=s=>JSON.parse(JSON.stringify(s));
 
-test('twenty adoptable breeds each carry a full personality card',()=>{
- assert.equal(BREEDS.length,20);
- assert.equal(new Set(BREEDS.map(b=>b.id)).size,20);
- assert.equal(new Set(BREEDS.map(b=>b.color)).size,20);
- assert.equal(new Set(BREEDS.map(b=>b.name)).size,20);
+test('thirty-four adoptable pets each carry a full personality card',()=>{
+ assert.equal(BREEDS.length,34);
+ assert.equal(new Set(BREEDS.map(b=>b.id)).size,34);
+ assert.equal(new Set(BREEDS.map(b=>b.color)).size,34);
+ assert.equal(new Set(BREEDS.map(b=>b.name)).size,34);
  const foods=INGREDIENTS.map(i=>i.id);
  for(const b of BREEDS){
   for(const k of ['id','name','tag','description','quote','personality'])assert.ok(text(b[k]),`${b.id} missing ${k}`);
@@ -20,7 +20,7 @@ test('twenty adoptable breeds each carry a full personality card',()=>{
   assert.equal(PERSONALITIES[b.id].name,b.personality);
   assert.deepEqual(PERSONALITIES[b.id].activities,b.activities);
  }
- assert.equal(Object.keys(FAVORITES).length,20);assert.equal(Object.keys(PERSONALITIES).length,20);
+ assert.equal(Object.keys(FAVORITES).length,34);assert.equal(Object.keys(PERSONALITIES).length,34);
 });
 
 test('the furniture catalogue is well formed and free pieces need no purchase',()=>{
@@ -163,3 +163,17 @@ test('all 12 collectibles are discoverable across repeat outings in 3 maps',()=>
 test('same treasure cannot be collected twice on one outing; repeat trips give smaller rewards',()=>{let s=freshState(),o=makeOuting('park',1);const id=o.spots[0].id;let r=collectTreasure(s,o,id);assert.equal(r.state.hearts,8);assert.equal(r.state.collection.length,1);assert.equal(collectTreasure(r.state,r.outing,id).state,r.state);const o2=makeOuting('park',5);r=collectTreasure(r.state,o2,id);assert.equal(r.state.hearts,9);assert.equal(r.state.collection.length,1);});
 
 test('relationship milestones are awarded once and persist through reload',()=>{let s=freshState();s=reward(s,{id:'first',bond:80});assert.deepEqual(s.milestones,[12,35,70]);assert.equal(bondLevel(s).name,'认定的家人');const n=reward(s,{id:'next',bond:2});assert.equal(n.memories.length,3);assert.deepEqual(normalizeSave(n).milestones,[12,35,70]);});
+
+test('every pet belongs to a known species and cat wording follows the adopted species',async()=>{
+ const {SPECIES,SPECIES_BY_ID,SPECIES_GROUPS,groupOf,speciesText}=await import('../src/species.js');
+ for(const b of BREEDS)assert.ok(SPECIES_BY_ID.has(b.species),`${b.id} species ${b.species}`);
+ assert.equal(BREEDS.filter(b=>b.species==='cat').length,20);
+ for(const s of SPECIES)assert.ok(BREEDS.some(b=>b.species===s.id),`no pet for ${s.id}`);
+ const groups=new Set(SPECIES_GROUPS.map(g=>g.id));for(const b of BREEDS)assert.ok(groups.has(groupOf(b.species)));
+ assert.equal(speciesText('小猫叼来礼物，本喵开心地喵了一声','cat'),'小猫叼来礼物，本喵开心地喵了一声');
+ assert.equal(speciesText('小猫叼来礼物，本喵开心地喵了一声','dog'),'小狗叼来礼物，本汪开心地汪了一声');
+ assert.equal(speciesText('喵呜小屋里的龙猫和猫窝','rabbit'),'喵呜小屋里的龙猫和兔窝');
+ assert.equal(speciesText(null,'dog'),null);
+ assert.equal(speciesText('点小猫摸摸，本喵在这','chinchilla'),'点小龙猫摸摸，本龙猫在这','no double rewrite into 龙龙猫');
+ assert.equal(speciesText('我们的喵喵纪念册','hedgehog'),'我们的哼哼纪念册');
+});

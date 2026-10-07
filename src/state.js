@@ -1,5 +1,7 @@
 import {normalizeOutfit} from './wardrobe.js';
-const breed=(id,name,tag,description,quote,color,favorite,personality,activities,voice=1)=>({id,name,tag,description,quote,color,favorite,personality,activities,voice});
+import {normalizeDaily} from './daily-wishes.js';
+import {normalizePhotos} from './photo-album.js';
+const breed=(id,name,tag,description,quote,color,favorite,personality,activities,voice=1,species='cat')=>({id,name,tag,description,quote,color,favorite,personality,activities,voice,species});
 export const BREEDS = [
  breed('calico','三花猫','古灵精怪','披着奶油花外套的小机灵鬼','我的特长？把你的沙发变成我的。','#fff8ee','shrimp','探险小机灵',['box','walk','toy','sun'],1.04),
  breed('ragdoll','布偶猫','软乎乎跟屁虫','蓝眼睛、巧克力耳朵和蓬松围脖','你走到哪，我就瘫到哪。','#fbf2e4','chicken','黏人小棉花',['follow','sleep','sun','follow'],1.08),
@@ -20,12 +22,26 @@ export const BREEDS = [
  breed('american','美短虎斑','元气小银虎','银色底子上画着黑色漩涡纹','今天的计划：吃饭、巡逻、和你玩。','#c9cdd2','chicken','元气小银虎',['walk','toy','sun','walk'],.98),
  breed('munchkin','曼基康','小短腿冲冲','腿短短，跑起来像一颗小汤圆在滚','腿短？那是因为我离地板更近，更懂地板。','#f5c58e','pumpkin','短腿小冲冲',['toy','walk','box','toy'],1.15),
  breed('golden','金渐层','金色小太阳','金色渐层绒毛，像裹了一层阳光','我在发光，因为你来了。','#f0cc8a','pumpkin','暖暖小太阳',['sun','sleep','sofa','sun'],.96),
- breed('norwegian','挪威森林猫','森林小王子','蓬松长毛、狮子围脖和大毛尾巴','我来自森林，但更喜欢你的沙发。','#c4b4a2','fish','森林小王子',['tower','sun','walk','sleep'],.86)
+ breed('norwegian','挪威森林猫','森林小王子','蓬松长毛、狮子围脖和大毛尾巴','我来自森林，但更喜欢你的沙发。','#c4b4a2','fish','森林小王子',['tower','sun','walk','sleep'],.86),
+ breed('corgi','柯基','短腿小屁屁','大耳朵、短短腿，走路屁股一扭一扭','腿短不是问题，追你照样第一名。','#e7a35f','chicken','快乐小跟班',['follow','toy','walk','follow'],1,'dog'),
+ breed('shiba','柴犬','微笑小柴','红棕毛、白脸颊和卷卷的尾巴','我在笑吗？我一直都在笑。','#d9874a','chicken','倔强小可爱',['walk','sun','toy','walk'],.95,'dog'),
+ breed('goldenretriever','金毛','暖心大宝贝','金色长毛、耷拉耳朵和摇不停的尾巴','你回来啦！你回来啦！你回来啦！','#e5bd78','chicken','暖心大宝贝',['follow','toy','sofa','follow'],.82,'dog'),
+ breed('pomeranian','博美','蓬蓬小毛球','一团会走路的棉花糖','我不是胖，我是毛量惊人。','#f2c38a','chicken','活泼小毛球',['toy','follow','walk','toy'],1.25,'dog'),
+ breed('husky','哈士奇','拆家小队长','蓝眼睛、灰白脸，表情永远很戏剧','我没拆家，我只是在帮沙发重新装修。','#aab3bd','fish','戏精小队长',['walk','toy','box','walk'],.9,'dog'),
+ breed('lop','垂耳兔','软耳朵小团子','两只耳朵垂下来，像戴了顶软帽子','耳朵垂下来，是为了把好消息都兜住。','#e9d3b4','carrot','温柔小团子',['sleep','box','sniff','follow'],1.15,'rabbit'),
+ breed('dwarf','侏儒兔','迷你小汤圆','小小一只，短耳朵圆脑袋','我很小，但我的胃口很大。','#cdb59a','carrot','好奇小汤圆',['box','sniff','walk','box'],1.3,'rabbit'),
+ breed('lionhead','狮子兔','毛领小狮王','脑袋一圈蓬蓬的狮子鬃毛','嗷呜——我是说，咕。','#f6efe4','pumpkin','威风小狮王',['sun','sniff','sleep','toy'],1.2,'rabbit'),
+ breed('hedgehog','刺猬','软刺小团子','背上一身小软刺，肚皮软乎乎','我很扎手吗？那是你还没摸到我的肚皮。','#b39b82','chicken','害羞小团子',['box','sleep','sniff','box'],1.35,'hedgehog'),
+ breed('hamster','仓鼠','腮帮子大王','圆滚滚，腮帮子能塞下一整个早餐','这颗瓜子我先存着，明天再吃。','#e8b878','pumpkin','囤粮小专家',['box','toy','sniff','sleep'],1.45,'hamster'),
+ breed('chinchilla','龙猫','云朵小绒球','银灰绒毛、大圆耳朵和蓬松大尾巴','我的毛很软，摸一下就会上瘾。','#b7b9bd','carrot','夜猫小绒球',['tower','sleep','box','sleep'],1.3,'chinchilla'),
+ breed('ferret','雪貂','长条小捣蛋','长长的身子，戴着天生的小面罩','藏东西是我的特长。你的袜子在哪？问我就对了。','#efe2cc','chicken','长条小捣蛋',['box','toy','walk','box'],1.1,'ferret'),
+ breed('guineapig','荷兰猪','土豆小胖墩','圆滚滚的三色小土豆，没有尾巴','吱吱！听到塑料袋响了，是吃的吗？','#d8a77a','carrot','话痨小土豆',['sniff','box','sleep','sniff'],1.4,'guineapig'),
+ breed('glider','蜜袋鼯','大眼小飞侠','大大的眼睛，背上一条小黑线','我会滑翔，从沙发到你的肩膀只要一秒。','#a9a6a8','pumpkin','夜行小飞侠',['tower','follow','sleep','tower'],1.35,'glider')
 ];
 export const ACTIONS={feed:{label:'喂饭',stat:'fullness',amount:26,scene:'home',duration:4600,quote:'等等，我的第二个胃还没准备好！',done:'光盘行动完成。饭碗：我太难了。'},bath:{label:'洗澡',stat:'clean',amount:35,scene:'bath',duration:5500,quote:'我可以湿身，但发型不能乱！',done:'洗出一只香香喵，附赠泡泡胡子。'},tv:{label:'看电视',stat:'mood',amount:23,scene:'tv',duration:5800,quote:'这条鱼演技不错，就是游不出来。',done:'追剧结束！已经想好给鱼写粉丝信了。'},play:{label:'出去玩',stat:'mood',amount:28,scene:'park',duration:6200,quote:'蝴蝶等等！我只是想问你午饭吃什么！',done:'带回一点快乐，和四只脏爪爪。'}};
 // Keep the original storage key so a v1 pet comes along on the adventure.
 export const SAVE_KEY='miaow-cottage-v1';
-export const INGREDIENTS=[{id:'fish',name:'小鱼肉',icon:'🐟'},{id:'chicken',name:'鸡肉丁',icon:'🍗'},{id:'shrimp',name:'小虾仁',icon:'🦐'},{id:'pumpkin',name:'南瓜泥',icon:'🎃'}];
+export const INGREDIENTS=[{id:'fish',name:'小鱼肉',icon:'🐟'},{id:'chicken',name:'鸡肉丁',icon:'🍗'},{id:'shrimp',name:'小虾仁',icon:'🦐'},{id:'pumpkin',name:'南瓜泥',icon:'🎃'},{id:'carrot',name:'胡萝卜',icon:'🥕'}];
 export const FAVORITES=Object.fromEntries(BREEDS.map(b=>[b.id,b.favorite]));
 export const PERSONALITIES=Object.fromEntries(BREEDS.map(b=>[b.id,{name:b.personality,activities:b.activities}]));
 // r: floor footprint (0 = rug the cat can walk over), h: obstacle height, perch: where the cat sits, approach: stop distance in front.
@@ -75,7 +91,7 @@ export const EVENTS=[
 ];
 export const BONDS=[{at:0,name:'初来乍到',hint:'多陪它玩一会儿'}, {at:12,name:'熟悉的朋友',hint:'学会听名字跑过来'}, {at:35,name:'黏人的搭档',hint:'主动蹭蹭，叼玩具来找你'}, {at:70,name:'认定的家人',hint:'每天回家可能收到小礼物'}];
 export function bondLevel(s){return BONDS.filter(t=>s.bond>=t.at).at(-1);}
-export function freshState(){return {version:3,adopted:false,breed:'calico',name:'糯米',outfit:{},fullness:66,clean:72,mood:75,bond:0,hearts:6,visits:0,memories:[],milestones:[],ownedFurniture:['box'],furniture:[{uid:'box',id:'box',x:2.45,z:1.25,rotation:0}],roomTheme:{wall:'cream',floor:'oak'},collection:[],friends:[],discoveredFoods:[],recipes:[],journeys:0,lastGiftDay:'',completedRewards:[],updatedAt:Date.now()};}
+export function freshState(){return {version:3,dailyWishes:normalizeDaily(),photos:[],adopted:false,breed:'calico',name:'糯米',outfit:{},fullness:66,clean:72,mood:75,bond:0,hearts:6,visits:0,memories:[],milestones:[],ownedFurniture:['box'],furniture:[{uid:'box',id:'box',x:2.45,z:1.25,rotation:0}],roomTheme:{wall:'cream',floor:'oak'},collection:[],displayedTreasures:[],friends:[],discoveredFoods:[],recipes:[],journeys:0,lastGiftDay:'',completedRewards:[],updatedAt:Date.now()};}
 const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
 export const FLOOR_LIMITS={minX:-3.6,maxX:3.6,minZ:-2.4,maxZ:2.4};
 // Free furniture is always owned; paid pieces unlock once and can then be placed as many times as you like.
@@ -83,6 +99,7 @@ export const ownsFurniture=(s,id)=>FURNITURE_BY_ID.get(id)?.cost===0||s.ownedFur
 const cleanItem=(f,uid)=>({uid,id:f.id,x:clamp(Number.isFinite(f.x)?f.x:0,FLOOR_LIMITS.minX,FLOOR_LIMITS.maxX),z:clamp(Number.isFinite(f.z)?f.z:1,FLOOR_LIMITS.minZ,FLOOR_LIMITS.maxZ),rotation:Number.isFinite(f.rotation)?f.rotation%(Math.PI*2):0});
 export function normalizeSave(data){
  const s=freshState();if(!data||![1,2,3].includes(data.version))return s;
+ s.dailyWishes=normalizeDaily(data.dailyWishes);s.photos=normalizePhotos(data.photos);
  s.adopted=data.adopted===true;s.breed=BREEDS.some(b=>b.id===data.breed)?data.breed:'calico';
  s.name=typeof data.name==='string'&&data.name.trim()?data.name.trim().slice(0,12):'糯米';
  for(const k of ['fullness','clean','mood'])s[k]=Number.isFinite(data[k])?clamp(data[k],0,100):s[k];
@@ -94,10 +111,17 @@ export function normalizeSave(data){
  s.ownedFurniture=[...new Set(['box',...validList('ownedFurniture',FURNITURE.map(f=>f.id))])];
  if(Array.isArray(data.furniture)){const seen=new Set();s.furniture=data.furniture.filter(f=>f&&ownsFurniture(s,f.id)).map(f=>cleanItem(f,typeof f.uid==='string'&&/^[\w-]{1,40}$/.test(f.uid)?f.uid:f.id)).filter(f=>!seen.has(f.uid)&&seen.add(f.uid)).slice(0,MAX_FURNITURE);}
  const theme=data.roomTheme||{};s.roomTheme={wall:WALL_THEMES.some(t=>t.id===theme.wall)?theme.wall:'cream',floor:FLOOR_THEMES.some(t=>t.id===theme.floor)?theme.floor:'oak'};
- s.collection=validList('collection',TREASURES.map(t=>t.id));s.friends=validList('friends',REGIONS.map(r=>r.id));s.discoveredFoods=validList('discoveredFoods',INGREDIENTS.map(i=>i.id));
+ s.collection=validList('collection',TREASURES.map(t=>t.id));s.displayedTreasures=normalizeTreasureDisplay(data.displayedTreasures,s.collection);s.friends=validList('friends',REGIONS.map(r=>r.id));s.discoveredFoods=validList('discoveredFoods',INGREDIENTS.map(i=>i.id));
  s.recipes=Array.isArray(data.recipes)?data.recipes.filter(x=>typeof x==='string').slice(-20):[];s.milestones=validList('milestones',BONDS.map(b=>b.at));
  s.completedRewards=Array.isArray(data.completedRewards)?data.completedRewards.filter(x=>typeof x==='string').slice(-100):[];s.lastGiftDay=typeof data.lastGiftDay==='string'?data.lastGiftDay:'';
  return s;
+}
+export function normalizeTreasureDisplay(ids,collection=[]){return Array.isArray(ids)?[...new Set(ids)].filter(id=>collection.includes(id)&&TREASURES.some(t=>t.id===id)).slice(0,3):[];}
+export function toggleTreasureDisplay(s,id){
+ if(!s.collection.includes(id)||!TREASURES.some(t=>t.id===id))return s;
+ const current=normalizeTreasureDisplay(s.displayedTreasures,s.collection);
+ if(current.includes(id))return {...s,displayedTreasures:current.filter(x=>x!==id)};
+ return current.length<3?{...s,displayedTreasures:[...current,id]}:s;
 }
 export function addMemory(s,text){if(text&&!s.memories.includes(text))s.memories=[...s.memories,text].slice(-60);return s;}
 export function reward(s,{id,hearts=0,bond=0,stat,amount=0,memory}={}){
