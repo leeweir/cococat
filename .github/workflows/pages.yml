@@ -3,16 +3,6 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      e2e:
-        description: Optional browser tests (shared runners can be slow with WebGL)
-        type: choice
-        required: false
-        default: none
-        options:
-          - none
-          - smoke
-          - full
 permissions:
   contents: read
   pages: write
@@ -31,21 +21,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
-      - name: Install browser for optional E2E
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.e2e != 'none' }}
-        run: npx playwright install --with-deps chromium
-      - name: Core browser smoke tests
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.e2e == 'smoke' }}
-        run: npm run test:e2e:smoke
-      - name: Full browser regression (manual)
-        if: ${{ github.event_name == 'workflow_dispatch' && inputs.e2e == 'full' }}
-        run: npm run test:e2e
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: browser-test-results
-          path: test-results
-          retention-days: 7
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

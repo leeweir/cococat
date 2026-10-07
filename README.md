@@ -91,11 +91,11 @@ npm run dev
 
 源码和 GitHub Pages 使用同一个公开仓库 `leeweir/cococat`，无需独立发布仓库，也无需提交 `dist/`。
 
-推送到 `main` 后，[Publish cococat](https://github.com/leeweir/cococat/actions/workflows/pages.yml) 工作流会安装依赖、运行 `npm run check`（全部单元测试及生产构建），通过后将构建产物部署到 GitHub Pages。日常发布默认不安装浏览器、不运行 E2E，以免共享运行器上的 3D 软件渲染拖慢发布。
+推送到 `main` 后，[Publish cococat](https://github.com/leeweir/cococat/actions/workflows/pages.yml) 工作流会安装依赖、运行 `npm run check`（全部单元测试及生产构建），通过后将构建产物部署到 GitHub Pages。自动和手动发布均不安装浏览器、不运行 E2E，以免共享运行器上的 3D 软件渲染拖慢发布。
 
 发布前可在本地运行 `npm run test:e2e` 执行完整 24 项回归，或运行 `npm run test:e2e:smoke` 执行桌面与手机尺寸各 1 项核心流程测试，覆盖领养、喂食、换装、刷新后的存档保留及页面横向溢出。
 
-Actions 手动发布的 **Optional browser tests**（`e2e`）提供三档：`none`（默认，不运行 E2E）、`smoke`（2 项核心流程）、`full`（24 项完整回归）。云端 WebGL 测试可能受软件渲染性能限制而超时；选择运行 E2E 时，测试必须通过才会部署，首个用例重试后仍失败则立即停止，并保留诊断产物 7 天。
+E2E 与发布流程独立。若在其他 CI 环境中手动运行浏览器测试，首个用例重试后仍失败则立即停止，避免后续用例继续累计超时。
 
 仓库 **Settings → Pages → Build and deployment → Source** 应选择 **GitHub Actions**。
 
